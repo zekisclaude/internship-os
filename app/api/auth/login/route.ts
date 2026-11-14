@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { SCOPES } from "@/lib/gmail";
 
 export async function GET() {
+  const missing = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "DATABASE_URL"].filter((k) => !process.env[k]);
+  if (missing.length) return NextResponse.redirect(`${process.env.APP_URL}/login?error=setup&missing=${missing.join(",")}`);
   const state = randomBytes(16).toString("hex");
   const p = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || "",
