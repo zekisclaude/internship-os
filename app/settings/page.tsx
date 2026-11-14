@@ -1,0 +1,16 @@
+import { requireUser } from "@/lib/guard";
+import { gmailAccount } from "@/lib/gmail";
+import Importer from "@/components/Importer";
+export const dynamic = "force-dynamic";
+const yes = (v?: string) => (v ? "set" : "missing");
+export default async function Page() {
+  await requireUser();
+  const g = await gmailAccount();
+  return (<div>
+    <h1>Settings</h1>
+    <div className="card"><b>Gmail sending</b><p>{g ? <>Connected as <b>{g.email}</b>. Emails you approve go out from this account.</> : <>Not connected. Sign out and sign in again with the first address in OWNER_EMAILS, and allow Gmail access.</>}</p></div>
+    <div className="card"><b>Agent access</b><p className="small">Claude token: {yes(process.env.CLAUDE_AGENT_TOKEN)}. ChatGPT token: {yes(process.env.CHATGPT_AGENT_TOKEN)}. Agents use the API described at <a href="/api/openapi">/api/openapi</a> with a bearer token. Claude may write research; ChatGPT may write drafts, contacts and replies. Neither can approve or send.</p></div>
+    <Importer />
+    <div className="card"><b>Limits</b><p className="small">Daily send limit: {process.env.DAILY_SEND_CAP || 15}. Reply detection runs on weekday mornings.</p></div>
+  </div>);
+}
