@@ -1,10 +1,8 @@
 // Smoke test for the agent API and the approval rules. Run against a local server:
-//   BASE=http://localhost:3000 SESSION_SECRET=... CLAUDE_AGENT_TOKEN=... CHATGPT_AGENT_TOKEN=... OWNER=you@x.edu node scripts/smoke.mjs
-import { createHmac } from "crypto";
+//   BASE=http://localhost:3000 SITE_PASSWORD=... CLAUDE_AGENT_TOKEN=... CHATGPT_AGENT_TOKEN=... node scripts/smoke.mjs
 const B = process.env.BASE || "http://localhost:3000";
 const C = process.env.CLAUDE_AGENT_TOKEN, G = process.env.CHATGPT_AGENT_TOKEN;
-const payload = Buffer.from(JSON.stringify({ email: process.env.OWNER, exp: Date.now() + 3600e3 })).toString("base64url");
-const cookie = `ios_session=${payload}.${createHmac("sha256", process.env.SESSION_SECRET).update(payload).digest("base64url")}`;
+let cookie = "";
 let pass = 0, failN = 0;
 const ok = (name, cond, extra = "") => { if (cond) pass++; else failN++; console.log(`${cond ? "PASS" : "FAIL"} ${name} ${cond ? "" : extra}`); };
 const call = async (method, path, { token, body, owner, origin = B } = {}) => {
@@ -16,6 +14,12 @@ const call = async (method, path, { token, body, owner, origin = B } = {}) => {
   return { s: r.status, j, loc: r.headers.get("location") };
 };
 
+const unlock = async (pw) => fetch(B + "/api/auth/password", { method: "POST", body: new URLSearchParams({ password: pw }), redirect: "manual" });
+let u = await unlock("wrong-password");
+ok("wrong password is refused", (u.headers.get("location") || "").includes("error=wrong") && !(u.headers.get("set-cookie") || "").includes("ios_session="));
+u = await unlock(process.env.SITE_PASSWORD);
+cookie = (u.headers.get("set-cookie") || "").split(";")[0];
+ok("right password unlocks", cookie.startsWith("ios_session=") && cookie.length > 40);
 ok("no token is refused", (await call("GET", "/api/agent/whoami")).s === 401);
 ok("bad token is refused", (await call("GET", "/api/agent/whoami", { token: "x".repeat(40) })).s === 401);
 ok("claude token works", (await call("GET", "/api/agent/whoami", { token: C })).j?.actor?.name === "claude");

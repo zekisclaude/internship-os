@@ -57,12 +57,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     if (!claim.length) return fail(409, "already sending or changed; reload");
     try {
       if (await alreadySent(o.to, o.subject)) throw new Error("a message with this subject to this address is already in Sent mail");
-      const s = await send({ to: o.to, subject: o.subject, body: o.body, threadId: o.replyToThreadId, inReplyTo: o.inReplyTo });
+      const s = await send({ to: o.to, subject: o.subject, body: o.body, inReplyTo: o.inReplyTo });
       const now = new Date();
       const history = [...(o.history || []), { at: now.toISOString(), event: "sent", by: u.email, version: o.version || 1, gmailMessageId: s.messageId }];
       const r = await write(actor, { collection: "outreach", id, ifVersion: claim[0].version, patch: {
         status: "sent", sending: false, sentAt: now.toISOString(), sentBy: s.from, gmailMessageId: s.messageId, gmailThreadId: s.threadId,
-        gmailUrl: `https://mail.google.com/mail/u/0/#sent/${s.threadId}`, followUpDue: addBusinessDays(now, 5).toISOString().slice(0, 10), history } }, { serverFields: true });
+        gmailUrl: s.url, followUpDue: addBusinessDays(now, 5).toISOString().slice(0, 10), history } }, { serverFields: true });
       await audit(actor, "send_outreach", `outreach/${id}`, `to ${o.to}, gmail ${s.messageId}`);
       return json({ ...r, gmailMessageId: s.messageId, gmailThreadId: s.threadId });
     } catch (e: any) {

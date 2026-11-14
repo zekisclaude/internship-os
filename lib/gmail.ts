@@ -1,56 +1,72 @@
-// Gmail through Google's REST API with the owner's stored refresh token. Server side only.
-import { query } from "./db";
-import { decrypt, encrypt } from "./crypto";
+// Gmail with an app password: send over SMTP, look things up over IMAP. Server side only.
+// Settings: GMAIL_ADDRESS and GMAIL_APP_PASSWORD (16 characters, from Google Account > Security > App passwords).
+import nodemailer from "nodemailer";
+import { ImapFlow } from "imapflow";
 
-export const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"];
+export function gmailConfigured(): { email: string } | null {
+  const email = process.env.GMAIL_ADDRESS, pass = process.env.GMAIL_APP_PASSWORD;
+  return email && pass ? { email } : null;
+}
+function creds() {
+  const c = gmailConfigured();
+  if (!c) throw new Error("Gmail is not connected. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD in Vercel and redeploy.");
+  return { user: c.email, pass: (process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, "") };
+}
+function smtp() {
+  return nodemailer.createTransport({ host: "smtp.gmail.com", port: 465, secure: true, auth: creds() });
+}
+async function withImap<T>(mailbox: string, fn: (c: ImapFlow) => Promise<T>): Promise<T> {
+  const c = new ImapFlow({ host: "imap.gmail.com", port: 993, secure: true, auth: creds(), logger: false });
+  await c.connect();
+  try {
+    const lock = await c.getMailboxLock(mailbox);
+    try { return await fn(c); } finally { lock.release(); }
+  } finally { await c.logout().catch(() => {}); }
+}
+const ALL = "[Gmail]/All Mail", SENT = "[Gmail]/Sent Mail";
+const hexThread = (id?: string) => (id ? BigInt(id).toString(16) : "");
 
-export async function saveRefreshToken(email: string, token: string) {
-  await query("insert into secrets (key,value) values ($1,$2) on conflict (key) do update set value=excluded.value, updated_at=now()",
-    ["gmail_refresh_token", encrypt(JSON.stringify({ email, token }))]);
-}
-export async function gmailAccount(): Promise<{ email: string; token: string } | null> {
-  const r = await query("select value from secrets where key=$1", ["gmail_refresh_token"]);
-  if (!r.length) return null;
-  try { return JSON.parse(decrypt(r[0].value)); } catch { return null; }
-}
-async function accessToken(): Promise<{ token: string; email: string }> {
-  const acct = await gmailAccount();
-  if (!acct) throw new Error("Gmail is not connected. Sign out and sign in again to grant Gmail access.");
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID!, client_secret: process.env.GOOGLE_CLIENT_SECRET!, refresh_token: acct.token, grant_type: "refresh_token" }),
-  });
-  const j = await res.json();
-  if (!res.ok) throw new Error(`Google token refresh failed: ${j.error || res.status}`);
-  return { token: j.access_token, email: acct.email };
-}
-async function gmail(path: string, init: RequestInit = {}) {
-  const { token } = await accessToken();
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { ...init, headers: { ...(init.headers || {}), authorization: `Bearer ${token}`, "content-type": "application/json" } });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Gmail ${path.split("?")[0]} failed: ${j.error?.message || res.status}`);
-  return j;
-}
-function encodeHeader(v: string) {
-  return /^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, "utf8").toString("base64")}?=`;
-}
-export function buildMime(o: { from: string; to: string; subject: string; body: string; inReplyTo?: string }): string {
-  const lines = [`From: ${o.from}`, `To: ${o.to}`, `Subject: ${encodeHeader(o.subject)}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: 8bit"];
-  if (o.inReplyTo) lines.push(`In-Reply-To: ${o.inReplyTo}`, `References: ${o.inReplyTo}`);
-  return Buffer.from(lines.join("\r\n") + "\r\n\r\n" + o.body.replace(/\r?\n/g, "\r\n"), "utf8").toString("base64url");
+export async function verify(): Promise<string> {
+  await smtp().verify();
+  await withImap("INBOX", async () => null);
+  return "ok";
 }
 export async function alreadySent(to: string, subject: string): Promise<boolean> {
-  const q = `in:sent to:${to} subject:"${subject.replace(/"/g, "")}" newer_than:60d`;
-  const j = await gmail(`messages?maxResults=1&q=${encodeURIComponent(q)}`);
-  return (j.resultSizeEstimate || 0) > 0 && Array.isArray(j.messages) && j.messages.length > 0;
+  return withImap(SENT, async (c) => {
+    const hits = await c.search({ gmraw: `to:${to} subject:"${subject.replace(/"/g, "")}" newer_than:60d` });
+    return Array.isArray(hits) && hits.length > 0;
+  });
 }
-export async function send(o: { to: string; subject: string; body: string; threadId?: string; inReplyTo?: string }) {
-  const acct = await gmailAccount();
-  const raw = buildMime({ from: acct!.email, ...o });
-  const j = await gmail("messages/send", { method: "POST", body: JSON.stringify({ raw, ...(o.threadId ? { threadId: o.threadId } : {}) }) });
-  return { messageId: j.id as string, threadId: j.threadId as string, from: acct!.email };
+export async function send(o: { to: string; subject: string; body: string; inReplyTo?: string }) {
+  const from = creds().user;
+  const info = await smtp().sendMail({ from, to: o.to, subject: o.subject, text: o.body, ...(o.inReplyTo ? { inReplyTo: o.inReplyTo, references: o.inReplyTo } : {}) });
+  const messageId = String(info.messageId || "");
+  // Gmail puts the sent copy in Sent Mail; read its thread id so replies can be matched later.
+  let threadId = "";
+  for (let i = 0; i < 3 && !threadId; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    threadId = await withImap(ALL, async (c) => {
+      const uids = await c.search({ gmraw: `rfc822msgid:${messageId.replace(/[<>]/g, "")}` });
+      if (!Array.isArray(uids) || !uids.length) return "";
+      const m = await c.fetchOne(String(uids[0]), { threadId: true }, { uid: true });
+      return m && (m as any).threadId ? String((m as any).threadId) : "";
+    }).catch(() => "");
+  }
+  return { messageId, threadId, from, url: threadId ? `https://mail.google.com/mail/u/0/#all/${hexThread(threadId)}` : "" };
 }
-export async function thread(id: string) {
-  return gmail(`threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
+// Messages in the thread that were not sent by the owner (replies).
+export async function repliesInThread(threadId: string): Promise<{ from: string; subject: string; date: string; snippet: string }[]> {
+  const me = creds().user.toLowerCase();
+  return withImap(ALL, async (c) => {
+    const uids = await c.search({ threadId });
+    if (!Array.isArray(uids) || !uids.length) return [];
+    const out: { from: string; subject: string; date: string; snippet: string }[] = [];
+    for await (const m of c.fetch(uids.join(","), { envelope: true, bodyParts: ["TEXT"] }, { uid: true })) {
+      const from = m.envelope?.from?.[0]?.address?.toLowerCase() || "";
+      if (!from || from === me) continue;
+      const text = m.bodyParts?.get("TEXT")?.toString("utf8") || "";
+      out.push({ from, subject: m.envelope?.subject || "", date: new Date(m.envelope?.date || Date.now()).toISOString(), snippet: text.replace(/\s+/g, " ").slice(0, 200) });
+    }
+    return out;
+  });
 }

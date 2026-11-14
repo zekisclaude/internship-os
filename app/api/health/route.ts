@@ -6,6 +6,6 @@ export async function GET() {
   if (has("DATABASE_URL")) {
     try { const { query } = await import("@/lib/db"); await query("select 1"); database = "ok"; } catch { database = "error"; }
   }
-  return json({ ok: database === "ok", database, googleSignIn: has("GOOGLE_CLIENT_ID") && has("GOOGLE_CLIENT_SECRET"),
-    secrets: ["SESSION_SECRET", "ENCRYPTION_KEY", "CRON_SECRET"].every(has), agents: { claude: has("CLAUDE_AGENT_TOKEN"), chatgpt: has("CHATGPT_AGENT_TOKEN") }, owners: has("OWNER_EMAILS") });
+  return json({ ok: database === "ok", database, sitePassword: has("SITE_PASSWORD"), gmail: has("GMAIL_ADDRESS") && has("GMAIL_APP_PASSWORD"),
+    secrets: ["SESSION_SECRET", "ENCRYPTION_KEY", "CRON_SECRET"].every(has), agents: { claude: has("CLAUDE_AGENT_TOKEN"), chatgpt: has("CHATGPT_AGENT_TOKEN") } });
 }
