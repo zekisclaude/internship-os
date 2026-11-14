@@ -13,6 +13,7 @@ async function init(): Promise<QueryFn> {
     const sql = neon(process.env.DATABASE_URL);
     q = async (text, params = []) => (await (sql as any)(text, params)) as Row[];
   } else {
+    if (process.env.VERCEL) throw new Error("DATABASE_URL is not set. Connect a Postgres database (Vercel > Storage > Neon).");
     const { PGlite } = await import("@electric-sql/pglite");
     const g = globalThis as any;
     g.__pglite ??= new PGlite();
