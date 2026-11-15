@@ -1,11 +1,10 @@
-// Owner-only actions on one message: approve, unapprove, edit, skip, send.
+// Owner-only actions on one message: approve, unapprove, edit, skip, compose (open in Gmail), sent (mark as sent).
 // Approval is bound to the exact recipient, subject and body the owner saw (a hash). Any edit clears it.
 import { fail, json, ownerOnly } from "@/lib/http";
 import { get, write, audit } from "@/lib/records";
 import { addBusinessDays, checks, messageHash } from "@/lib/outreach";
-import { alreadySent, send } from "@/lib/gmail";
+import { gmailComposeUrl } from "@/lib/compose";
 import { sentToday } from "@/lib/queue";
-import { query } from "@/lib/db";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; action: string }> }) {
   const u = await ownerOnly(req);
@@ -42,34 +41,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     if (r.ok) await audit(actor, "approve_outreach", `outreach/${id}`, `v${approval.version} to ${o.to}`);
     return json(r, r.ok ? 200 : 409);
   }
-  if (action === "send") {
+  if (action === "compose" || action === "sent") {
     if (o.status !== "approved" || !o.approval) return fail(409, "approve this exact message first");
     if (o.approval.hash !== hash || o.approval.to !== o.to) return fail(409, "the message changed after approval; approve it again");
     if (body.hash !== hash) return fail(409, "the message changed since you opened it; reload");
-    if (o.sentAt) return fail(409, "already sent");
     const contact = o.contactId ? await get("contacts", o.contactId) : null;
     const hard = checks(o, { optOut: !!contact?.data.optOut }).filter((c) => c.hard && !c.ok);
     if (hard.length) return fail(422, "blocked", { failed: hard.map((c) => c.label) });
-    const cap = Number(process.env.DAILY_SEND_CAP || 15);
-    if ((await sentToday()) >= cap) return fail(429, `daily limit of ${cap} reached`);
-    // Claim the send so a double click cannot send twice.
-    const claim = await query("update records set data = data || '{\"sending\":true}'::jsonb, version=version+1 where collection='outreach' and id=$1 and version=$2 and not (data ? 'sending' and (data->>'sending')::boolean) returning version", [id, rec.version]);
-    if (!claim.length) return fail(409, "already sending or changed; reload");
-    try {
-      if (await alreadySent(o.to, o.subject)) throw new Error("a message with this subject to this address is already in Sent mail");
-      const s = await send({ to: o.to, subject: o.subject, body: o.body, inReplyTo: o.inReplyTo });
-      const now = new Date();
-      const history = [...(o.history || []), { at: now.toISOString(), event: "sent", by: u.email, version: o.version || 1, gmailMessageId: s.messageId }];
-      const r = await write(actor, { collection: "outreach", id, ifVersion: claim[0].version, patch: {
-        status: "sent", sending: false, sentAt: now.toISOString(), sentBy: s.from, gmailMessageId: s.messageId, gmailThreadId: s.threadId,
-        gmailUrl: s.url, followUpDue: addBusinessDays(now, 5).toISOString().slice(0, 10), history } }, { serverFields: true });
-      await audit(actor, "send_outreach", `outreach/${id}`, `to ${o.to}, gmail ${s.messageId}`);
-      return json({ ...r, gmailMessageId: s.messageId, gmailThreadId: s.threadId });
-    } catch (e: any) {
-      await query("update records set data = data - 'sending', version=version+1 where collection='outreach' and id=$1", [id]);
-      await audit(actor, "send_failed", `outreach/${id}`, String(e.message || e));
-      return fail(502, String(e.message || e));
+    const now = new Date();
+    if (action === "compose") {
+      const cap = Number(process.env.DAILY_SEND_CAP || 15);
+      if ((await sentToday()) >= cap) return fail(429, `daily limit of ${cap} reached`);
+      const history = [...(o.history || []), { at: now.toISOString(), event: "opened_in_gmail", by: u.email, version: o.version || 1 }];
+      await write(actor, { collection: "outreach", id, ifVersion: rec.version, patch: { openedInGmailAt: now.toISOString(), history } }, { serverFields: true });
+      await audit(actor, "open_in_gmail", `outreach/${id}`, `to ${o.to}`);
+      return json({ ok: true, url: gmailComposeUrl({ to: o.to, subject: o.subject, body: o.body }) });
     }
+    const history = [...(o.history || []), { at: now.toISOString(), event: "sent", by: u.email, version: o.version || 1, via: "gmail compose" }];
+    const r = await write(actor, { collection: "outreach", id, ifVersion: rec.version, patch: {
+      status: "sent", sentAt: now.toISOString(), sentBy: process.env.SENDER_GMAIL || "owner", followUpDue: addBusinessDays(now, 5).toISOString().slice(0, 10), history } }, { serverFields: true });
+    if (r.ok) await audit(actor, "mark_sent", `outreach/${id}`, `to ${o.to}`);
+    return json(r, r.ok ? 200 : 409);
   }
   return fail(404, "unknown action");
 }

@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { hmac, safeEqual } from "./crypto";
 
-// No accounts: the owner unlocks the site with SITE_PASSWORD and the browser is remembered for 30 days.
+// Access: if SITE_PASSWORD is not set, the site is open and every visitor acts as the owner (the owner chose this).
+// If SITE_PASSWORD is set, the owner unlocks the site with it and the browser is remembered for 30 days.
 const NAME = "ios_session";
 const MAX_AGE = 60 * 60 * 24 * 30;
 export const OWNER = "owner";
@@ -22,7 +23,9 @@ export function readSession(token?: string | null): { email: string } | null {
     return { email: process.env.GMAIL_ADDRESS || OWNER };
   } catch { return null; }
 }
+export function siteIsOpen(): boolean { return !process.env.SITE_PASSWORD; }
 export async function currentUser(): Promise<{ email: string } | null> {
+  if (siteIsOpen()) return { email: process.env.SENDER_GMAIL || OWNER };
   const c = await cookies();
   return readSession(c.get(NAME)?.value);
 }

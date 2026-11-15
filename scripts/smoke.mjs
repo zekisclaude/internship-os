@@ -62,13 +62,18 @@ ok("status is approved", it.data.status === "approved" && it.data.approval?.hash
 r = await call("PATCH", "/api/agent/records/outreach/o1", { token: G, body: { patch: { body: "Hi Pat,\n\nNew text.\n\nThanks,\nZeki" }, ifVersion: it.version } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
 ok("an edit after approval clears it", r.s === 200 && it.data.approval === null && it.data.status === "awaiting_approval" && it.data.version === 2, JSON.stringify(it.data));
-ok("send without approval is refused", (await call("POST", "/api/outreach/o1/send", { owner: true, body: { hash: it.hash } })).s === 409);
+ok("open in Gmail without approval is refused", (await call("POST", "/api/outreach/o1/compose", { owner: true, body: { hash: it.hash } })).s === 409);
 await call("POST", "/api/outreach/o1/approve", { owner: true, body: { hash: it.hash } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
-r = await call("POST", "/api/outreach/o1/send", { owner: true, body: { hash: it.hash } });
-ok("send fails safely when Gmail is not connected", r.s === 502 && /Gmail is not connected/.test(r.j?.error || ""), JSON.stringify(r.j));
+r = await call("POST", "/api/outreach/o1/compose", { owner: true, body: { hash: it.hash } });
+ok("open in Gmail returns a filled compose link", r.s === 200 && r.j?.url?.startsWith("https://mail.google.com/mail/?view=cm") && r.j.url.includes("to=pat%40acme.com"), JSON.stringify(r.j));
+r = await call("POST", "/api/outreach/o1/sent", { owner: true, body: { hash: it.hash } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
-ok("failed send leaves it approved and unsent", it.data.status === "approved" && !it.data.sentAt && !it.data.sending);
+ok("I sent it records the send", r.s === 200 && it.data.status === "sent" && !!it.data.sentAt && !!it.data.followUpDue, JSON.stringify(it.data).slice(0,200));
+r = await call("PATCH", "/api/agent/records/outreach/o1", { token: G, body: { patch: { status: "replied" }, ifVersion: it.version } });
+ok("chatgpt can mark a sent message replied", r.s === 200, JSON.stringify(r.j));
+r = await call("PATCH", "/api/agent/records/outreach/o4", { token: G, body: { patch: { status: "replied" }, ifVersion: 1 } });
+ok("chatgpt cannot mark an unsent message replied", r.s === 403 || r.s === 409);
 
 await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { optOut: true }, ifVersion: 1 } });
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o3", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "published", subject: "Follow up on Acme", body: "Hi Pat,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
@@ -78,7 +83,6 @@ await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection:
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o4");
 ok("guessed address needs the extra tick", (await call("POST", "/api/outreach/o4/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 ok("guessed address approves with the tick", (await call("POST", "/api/outreach/o4/approve", { owner: true, body: { hash: it.hash, allowInferred: true } })).s === 200);
-ok("cron needs its secret", (await call("GET", "/api/cron/replies")).s === 401);
 ok("openapi is served", (await call("GET", "/api/openapi")).j?.openapi === "3.1.0");
 
 r = await call("POST", "/api/admin/import", { token: C, body: { records: [] } });

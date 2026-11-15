@@ -4,7 +4,7 @@ A private site for Zeki's Summer 2027 internship search. One database shared by 
 
 - **Claude** writes research: postings, eligibility, pay, deadlines, screening, scores, companies.
 - **ChatGPT** writes outreach: recipients, contacts, email drafts, follow-ups, reply labels.
-- **Zeki** unlocks the site with a password, reviews drafts in the queue, approves the exact message, and sends it from his Gmail.
+- **Zeki** opens the site, reviews drafts in the queue, approves the exact message, and sends it from his Gmail.
 
 Agents use a token-protected API (`/api/openapi`). Neither agent can approve or send. Rules for agents are in [AGENTS.md](AGENTS.md).
 
@@ -15,10 +15,8 @@ Agents use a token-protected API (`/api/openapi`). Neither agent can approve or 
 2. In the project, open **Storage > Create Database > Neon (Postgres)** and connect it to the project. This sets `DATABASE_URL`.
 3. In **Settings > Deployment Protection**, leave Vercel Authentication on for preview deployments. The production site has its own Google sign-in.
 
-### 2. Gmail app password
-1. Turn on 2-Step Verification for the Gmail account you send from (myaccount.google.com > Security).
-2. Open myaccount.google.com/apppasswords, create one named "Internship OS", and copy the 16 characters.
-3. If Google says app passwords are not available, the account's administrator (for example Penn) has turned them off. Use a personal Gmail account instead.
+### 2. Sending
+No Gmail password or Google setup. An approved email opens in your own Gmail already filled in, you press Send, then click "I sent it" on the site. Set `SENDER_GMAIL` if you use several Google accounts in the browser.
 
 ### 3. Environment variables (Vercel > Settings > Environment Variables, Production)
 See `.env.example` for the full list. Generate each secret with `openssl rand -hex 32` (or any password generator, 64 characters).
@@ -26,13 +24,13 @@ See `.env.example` for the full list. Generate each secret with `openssl rand -h
 | Name | Value |
 |---|---|
 | `APP_URL` | `https://<your-vercel-domain>` |
-| `SITE_PASSWORD` | a long passphrase you choose; it unlocks the site |
-| `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD` | the sending account and its app password from step 2 |
-| `SESSION_SECRET`, `ENCRYPTION_KEY`, `CRON_SECRET` | three different random values |
+| `SITE_PASSWORD` | optional. Leave it unset and the site is open to anyone with the link (the current choice). Set it to require a password. |
+| `SENDER_GMAIL` | optional: the Gmail address to open the compose window in |
+| `SESSION_SECRET`, `ENCRYPTION_KEY` | two different random values |
 | `CLAUDE_AGENT_TOKEN`, `CHATGPT_AGENT_TOKEN` | two different random values |
 | `DAILY_SEND_CAP` | `15` |
 
-Redeploy after saving. Open the site, enter the password, then use **Settings > Test Gmail connection** (it sends nothing).
+Redeploy after saving.
 
 ### 4. Connect the agents
 - **Claude**: in the Claude session, Claude asks for the token through its secure credential form for your Vercel domain. Paste `CLAUDE_AGENT_TOKEN` there, never in chat.
@@ -54,5 +52,5 @@ npm run smoke      # with the server running; see the header of scripts/smoke.mj
 1. ChatGPT writes a draft (`status: awaiting_approval`) with the recipient, an address label, subject, body and a source for the personal hook.
 2. The queue shows each draft with automatic checks: valid address, opt-out, address label, length, em dashes, subject length, hook source, duplicate firm, open research flags. Hard failures block approval.
 3. **Approve** stores a hash of the exact recipient, subject and body. Any later edit clears it.
-4. **Send** re-checks the hash, the daily limit and Gmail's Sent folder for a duplicate, then sends over Gmail SMTP from your account and records the message and thread IDs.
-5. On weekday mornings a job checks sent threads for replies, marks them `replied`, and adds them to `threads` for ChatGPT to label.
+4. **Open in Gmail** re-checks the hash and the daily limit, then opens your Gmail compose window with the exact approved text. You press Send in Gmail, then **I sent it** records the send and sets the follow-up date.
+5. ChatGPT watches your Gmail for replies and marks the message `replied`.
