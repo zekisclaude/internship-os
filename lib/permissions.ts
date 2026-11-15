@@ -6,7 +6,7 @@ export const COLLECTIONS = ["opportunities", "companies", "contacts", "outreach"
 export type Collection = (typeof COLLECTIONS)[number];
 
 // Fields only the server sets (approval and send history). Nobody writes these through the record API.
-export const SERVER_ONLY_OUTREACH = ["approval", "gmailMessageId", "gmailThreadId", "sentAt", "sentBy", "history"];
+export const SERVER_ONLY_OUTREACH = ["approval", "sentAt", "sentBy", "history", "openedInGmailAt"];
 const AGENT_OUTREACH_STATUSES = ["draft", "awaiting_approval", "rejected", "archived"];
 
 type Rule = { collections: Partial<Record<Collection, "all" | string[]>> };
@@ -21,7 +21,7 @@ export function checkWrite(actor: Actor, collection: string, patch: Record<strin
   if (!(COLLECTIONS as readonly string[]).includes(collection)) return `unknown collection ${collection}`;
   if (collection === "outreach") {
     for (const f of SERVER_ONLY_OUTREACH) if (f in patch) return `field ${f} is set by the server only`;
-    if ("status" in patch && ["approved", "sent", "replied"].includes(String(patch.status)) && actor.kind === "agent")
+    if ("status" in patch && ["approved", "sent"].includes(String(patch.status)) && actor.kind === "agent")
       return `agents cannot set status ${patch.status}`;
   }
   if (actor.kind === "human") return null;
@@ -33,7 +33,9 @@ export function checkWrite(actor: Actor, collection: string, patch: Record<strin
     if (!existing) return `${actor.name} may not create ${collection} records`;
   }
   if (collection === "outreach" && actor.name === "chatgpt") {
-    if ("status" in patch && !AGENT_OUTREACH_STATUSES.includes(String(patch.status))) return `status must be one of ${AGENT_OUTREACH_STATUSES.join(", ")}`;
+    if ("status" in patch && patch.status !== "replied" && !AGENT_OUTREACH_STATUSES.includes(String(patch.status))) return `status must be one of ${AGENT_OUTREACH_STATUSES.join(", ")}`;
+    // ChatGPT tracks replies: it may move a sent message to replied, and record the Gmail thread it found.
+    if ("status" in patch && patch.status === "replied" && existing?.status !== "sent") return "only a sent message can become replied";
     if (existing && ["sent", "replied"].includes(existing.status) && ["to", "subject", "body"].some((k) => k in patch))
       return "a sent message cannot be edited; create a follow-up record instead";
   }

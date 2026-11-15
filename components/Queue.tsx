@@ -30,17 +30,26 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.ok === false) { setMsg({ t: (j.error || "Failed") + (j.failed ? `: ${j.failed.join("; ")}` : ""), bad: true }); return false; }
       await reload();
-      setMsg({ t: { approve: "Approved.", send: `Sent to ${it.data.to}.`, skip: "Skipped.", edit: "Saved. It needs approval again.", unapprove: "Approval removed." }[action] || "Done." });
+      setMsg({ t: { approve: "Approved.", sent: `Marked as sent to ${it.data.to}.`, skip: "Skipped.", edit: "Saved. It needs approval again.", unapprove: "Approval removed." }[action] || "Done." });
       return true;
     } finally { setBusy(false); }
   }
-  async function approveSend(it: Item) {
-    if (it.data.status !== "approved") { const ok = await act(it, "approve", { allowInferred: !!inferredOk[it.id] }); if (!ok) return; }
+  // Opens Gmail with the approved message filled in. The tab is opened right away so the browser does not block it.
+  async function openInGmail(it: Item) {
+    const tab = window.open("about:blank", "_blank");
+    if (it.data.status !== "approved") {
+      const ok = await act(it, "approve", { allowInferred: !!inferredOk[it.id] });
+      if (!ok) { tab?.close(); return; }
+    }
     const fresh = await (await fetch("/api/queue", { cache: "no-store" })).json();
     const now = (fresh.items as Item[]).find((x) => x.id === it.id);
-    if (!now) return;
-    if (!confirm(`Send this email to ${now.data.to} now?`)) { setItems(fresh.items); return; }
-    await act(now, "send");
+    if (!now) { tab?.close(); return; }
+    const r = await fetch(`/api/outreach/${encodeURIComponent(it.id)}/compose`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: now.hash }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) { tab?.close(); setMsg({ t: j.error || "Could not open Gmail", bad: true }); return; }
+    if (tab) tab.location.href = j.url; else window.location.href = j.url;
+    await reload();
+    setMsg({ t: `Opened in Gmail for ${now.data.to}. Press Send there, then click "I sent it" here.` });
   }
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -58,7 +67,7 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
   return (
     <div>
       <h1>Review queue</h1>
-      <p className="sub">Emails ChatGPT drafted. Nothing is sent until you approve that exact message and press send. Sent today: {sentCount} of {cap}. Keys: <span className="kbd">J</span>/<span className="kbd">K</span> move, <span className="kbd">A</span> approve, <span className="kbd">E</span> edit, <span className="kbd">S</span> skip.</p>
+      <p className="sub">Emails ChatGPT drafted. Nothing goes out until you approve the exact message and press Send in your own Gmail. Sent today: {sentCount} of {cap}. Keys: <span className="kbd">J</span>/<span className="kbd">K</span> move, <span className="kbd">A</span> approve, <span className="kbd">E</span> edit, <span className="kbd">S</span> skip.</p>
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={"btn" + (tab === k ? " pri" : "")} onClick={() => { setTab(k); setSel(0); }}>{l} ({items.filter((i) => tabOf(i.data.status) === k).length})</button>)}</div>
       {msg && <div className={"msg " + (msg.bad ? "bad" : "good")}>{msg.t}</div>}
       {!shown.length && <div className="card mut">Nothing here.</div>}
@@ -103,17 +112,18 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
             )}
             <div className="row" style={{ marginTop: 10 }}>
               {["awaiting_approval", "draft", "skipped"].includes(o.status) && <>
-                <button className="btn pri" disabled={busy || hardFail || edit === it.id} onClick={() => approveSend(it)}>Approve and send</button>
+                <button className="btn pri" disabled={busy || hardFail || edit === it.id} onClick={() => openInGmail(it)}>Approve and open in Gmail</button>
                 <button className="btn" disabled={busy || hardFail || edit === it.id} onClick={() => act(it, "approve", { allowInferred: !!inferredOk[it.id] })}>Approve only</button>
                 <button className="btn" disabled={busy} onClick={() => { setEdit(it.id); setDraft({ to: o.to || "", subject: o.subject || "", body: o.body || "" }); }}>Edit</button>
                 {o.status !== "skipped" && <button className="btn" disabled={busy} onClick={() => act(it, "skip")}>Skip</button>}
               </>}
               {o.status === "approved" && <>
-                <button className="btn pri" disabled={busy} onClick={() => approveSend(it)}>Send now</button>
+                <button className="btn pri" disabled={busy} onClick={() => openInGmail(it)}>{o.openedInGmailAt ? "Open in Gmail again" : "Open in Gmail"}</button>
+                <button className="btn" disabled={busy} onClick={() => act(it, "sent")}>I sent it</button>
                 <button className="btn" disabled={busy} onClick={() => act(it, "unapprove")}>Remove approval</button>
                 <span className="small mut">Approved {String(o.approval?.at || "").slice(0, 16).replace("T", " ")} for {o.approval?.to}</span>
               </>}
-              {o.sentAt && <span className="small mut">Sent {String(o.sentAt).slice(0, 16).replace("T", " ")}{o.followUpDue ? `, follow-up due ${o.followUpDue}` : ""}{o.gmailUrl && <> · <a href={o.gmailUrl} target="_blank" rel="noreferrer">open in Gmail</a></>}</span>}
+              {o.sentAt && <span className="small mut">Sent {String(o.sentAt).slice(0, 16).replace("T", " ")}{o.followUpDue ? `, follow-up due ${o.followUpDue}` : ""}</span>}
             </div>
           </div>
         );
