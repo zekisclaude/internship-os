@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { agentFromRequest, type Actor } from "./agents";
-import { currentUser } from "./session";
+import { currentUser, siteIsOpen } from "./session";
 
 export const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "cache-control": "no-store" } });
 export const fail = (status: number, error: string, extra: Record<string, unknown> = {}) => json({ error, ...extra }, status);
@@ -8,6 +8,8 @@ export const fail = (status: number, error: string, extra: Record<string, unknow
 export async function actorFor(req: Request): Promise<Actor | null> {
   const a = agentFromRequest(req);
   if (a) return a;
+  // On an open site, writing through the agent API always needs an agent token.
+  if (siteIsOpen() && req.method !== "GET") return null;
   const u = await currentUser();
   if (u) {
     // Cookie-authenticated writes must come from this site's own pages.

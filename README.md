@@ -4,7 +4,7 @@ A private site for Zeki's Summer 2027 internship search. One database shared by 
 
 - **Claude** writes research: postings, eligibility, pay, deadlines, screening, scores, companies.
 - **ChatGPT** writes outreach: recipients, contacts, email drafts, follow-ups, reply labels.
-- **Zeki** unlocks the site with a password, reviews drafts in the queue, approves the exact message, and sends it from his Gmail.
+- **Zeki** opens the site, reviews drafts in the queue, approves the exact message, and sends it from his Gmail.
 
 Agents use a token-protected API (`/api/openapi`). Neither agent can approve or send. Rules for agents are in [AGENTS.md](AGENTS.md).
 
@@ -24,7 +24,7 @@ See `.env.example` for the full list. Generate each secret with `openssl rand -h
 | Name | Value |
 |---|---|
 | `APP_URL` | `https://<your-vercel-domain>` |
-| `SITE_PASSWORD` | a long passphrase you choose; it unlocks the site |
+| `SITE_PASSWORD` | optional. Leave it unset and the site is open to anyone with the link (the current choice). Set it to require a password. |
 | `SENDER_GMAIL` | optional: the Gmail address to open the compose window in |
 | `SESSION_SECRET`, `ENCRYPTION_KEY` | two different random values |
 | `CLAUDE_AGENT_TOKEN`, `CHATGPT_AGENT_TOKEN` | two different random values |
