@@ -34,8 +34,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     const contact = o.contactId ? await get("contacts", o.contactId) : null;
     const hard = checks(o, { optOut: !!contact?.data.optOut }).filter((c) => c.hard && !c.ok);
     if (hard.length) return fail(422, "fix before approving", { failed: hard.map((c) => c.label) });
-    if (o.toStatus === "pattern-inferred" && body.allowInferred !== true) return fail(422, "this address is a guess from the firm's email format; tick the box to approve it anyway");
-    const approval = { version: o.version || 1, hash, to: o.to, at: new Date().toISOString(), by: u.email, allowInferred: o.toStatus === "pattern-inferred" };
+    const approval = { version: o.version || 1, hash, to: o.to, at: new Date().toISOString(), by: u.email };
     const history = [...(o.history || []), { at: approval.at, event: "approved", by: u.email, version: approval.version }];
     const r = await write(actor, { collection: "outreach", id, patch: { status: "approved", approval, history }, ifVersion: rec.version }, { serverFields: true });
     if (r.ok) await audit(actor, "approve_outreach", `outreach/${id}`, `v${approval.version} to ${o.to}`);

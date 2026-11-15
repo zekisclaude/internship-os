@@ -81,8 +81,10 @@ q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) =>
 ok("opt-out blocks approval", (await call("POST", "/api/outreach/o3/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o4", patch: { to: "first.last@bigbank.com", toStatus: "pattern-inferred", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o4");
-ok("guessed address needs the extra tick", (await call("POST", "/api/outreach/o4/approve", { owner: true, body: { hash: it.hash } })).s === 422);
-ok("guessed address approves with the tick", (await call("POST", "/api/outreach/o4/approve", { owner: true, body: { hash: it.hash, allowInferred: true } })).s === 200);
+ok("guessed address cannot be approved", (await call("POST", "/api/outreach/o4/approve", { owner: true, body: { hash: it.hash } })).s === 422);
+await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o5", patch: { to: "info@acme.com", toStatus: "general_inbox", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
+q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o5");
+ok("general inbox cannot be approved", (await call("POST", "/api/outreach/o5/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 ok("openapi is served", (await call("GET", "/api/openapi")).j?.openapi === "3.1.0");
 
 r = await call("POST", "/api/admin/import", { token: C, body: { records: [] } });

@@ -5,7 +5,7 @@ type Check = { id: string; label: string; ok: boolean; hard: boolean };
 type Item = { id: string; version: number; hash: string; data: any; checks: Check[] };
 const TABS = [["review", "To review"], ["approved", "Approved, not sent"], ["sent", "Sent"], ["replied", "Replies"], ["other", "Skipped and rejected"]] as const;
 const tabOf = (s: string) => s === "awaiting_approval" || s === "draft" ? "review" : s === "approved" ? "approved" : s === "sent" ? "sent" : s === "replied" ? "replied" : "other";
-const LABEL: Record<string, [string, string]> = { published: ["Published address", "good"], verified_public: ["Published address", "good"], general_inbox: ["General inbox", "warn"], "pattern-inferred": ["Guessed address", "bad"] };
+const LABEL: Record<string, [string, string]> = { published: ["Verified address", "good"], verified_public: ["Verified address", "good"], general_inbox: ["General inbox, not allowed", "bad"], "pattern-inferred": ["Guessed address, not allowed", "bad"] };
 
 export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: number; cap: number }) {
   const [items, setItems] = useState(initial);
@@ -15,8 +15,7 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
   const [draft, setDraft] = useState({ to: "", subject: "", body: "" });
   const [msg, setMsg] = useState<{ t: string; bad?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [inferredOk, setInferredOk] = useState<Record<string, boolean>>({});
-  const [sentCount, setSent] = useState(sent);
+    const [sentCount, setSent] = useState(sent);
   const shown = useMemo(() => items.filter((i) => tabOf(i.data.status) === tab), [items, tab]);
 
   async function reload() {
@@ -38,7 +37,7 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
   async function openInGmail(it: Item) {
     const tab = window.open("about:blank", "_blank");
     if (it.data.status !== "approved") {
-      const ok = await act(it, "approve", { allowInferred: !!inferredOk[it.id] });
+      const ok = await act(it, "approve");
       if (!ok) { tab?.close(); return; }
     }
     const fresh = await (await fetch("/api/queue", { cache: "no-store" })).json();
@@ -57,7 +56,7 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
       const it = shown[sel]; if (!it) return;
       if (e.key === "j") setSel((s) => Math.min(s + 1, shown.length - 1));
       if (e.key === "k") setSel((s) => Math.max(s - 1, 0));
-      if (e.key === "a" && !busy) act(it, "approve", { allowInferred: !!inferredOk[it.id] });
+      if (e.key === "a" && !busy) act(it, "approve");
       if (e.key === "s" && !busy) act(it, "skip");
       if (e.key === "e") { setEdit(it.id); setDraft({ to: it.data.to || "", subject: it.data.subject || "", body: it.data.body || "" }); }
     }
@@ -107,13 +106,10 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
             {(o.evidence || []).length > 0 && <div className="small mut">Hook: {(o.evidence || []).map((e: any, k: number) => <span key={k}>{e.claim || "source"} {e.url && <a href={e.url} target="_blank" rel="noreferrer">link</a>}{k < o.evidence.length - 1 ? "; " : ""}</span>)}</div>}
             {flags.length > 0 && <div className="msg bad small">Research flag: {flags.map((f: any) => f.reason).join(" | ")}</div>}
             <div className="checks">{it.checks.map((c) => <span key={c.id} className={"pill " + (c.ok ? "good" : c.hard ? "bad" : "warn")}>{c.ok ? "OK" : "Check"}: {c.label}</span>)}</div>
-            {o.toStatus === "pattern-inferred" && ["awaiting_approval", "draft"].includes(o.status) && (
-              <label className="small"><input type="checkbox" checked={!!inferredOk[it.id]} onChange={(e) => setInferredOk({ ...inferredOk, [it.id]: e.target.checked })} /> I know this address is a guess and want to send to it anyway</label>
-            )}
             <div className="row" style={{ marginTop: 10 }}>
               {["awaiting_approval", "draft", "skipped"].includes(o.status) && <>
                 <button className="btn pri" disabled={busy || hardFail || edit === it.id} onClick={() => openInGmail(it)}>Approve and open in Gmail</button>
-                <button className="btn" disabled={busy || hardFail || edit === it.id} onClick={() => act(it, "approve", { allowInferred: !!inferredOk[it.id] })}>Approve only</button>
+                <button className="btn" disabled={busy || hardFail || edit === it.id} onClick={() => act(it, "approve")}>Approve only</button>
                 <button className="btn" disabled={busy} onClick={() => { setEdit(it.id); setDraft({ to: o.to || "", subject: o.subject || "", body: o.body || "" }); }}>Edit</button>
                 {o.status !== "skipped" && <button className="btn" disabled={busy} onClick={() => act(it, "skip")}>Skip</button>}
               </>}

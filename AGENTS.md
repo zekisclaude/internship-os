@@ -15,7 +15,7 @@ The server enforces this: each agent has its own API token and `lib/permissions.
 ## Hard rules (do not weaken in code or data)
 
 1. Nothing is sent without Zeki approving the exact recipient, subject and body. Approval is a hash of those; any edit clears it (`lib/records.ts`, `app/api/outreach/[id]/[action]/route.ts`).
-2. Email only. Every outreach record needs `to` and a `toStatus` label: `published`, `general_inbox` or `pattern-inferred`. A guessed address is never called verified, and approving one needs an extra confirmation.
+2. Email only, verified addresses only (owner rule, 2026-11-15). Every outreach record needs `to` and `toStatus`. Only `published` (the firm or person published it, with the source URL in `evidence`) can be approved. `general_inbox` and `pattern-inferred` are blocked: find a published personal address or choose another person.
 3. Never contact anyone who opted out (`contacts.optOut`, `outreach.suppressed`).
 4. Never invent facts about Zeki. Facts come only from his current resume.
 5. Screening is activity-based and uses exactly: Low apparent conflict, Requires clarification, High direct-involvement concern, Insufficient information. It is never a religious ruling.
