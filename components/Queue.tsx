@@ -5,7 +5,7 @@ type Check = { id: string; label: string; ok: boolean; hard: boolean };
 type Item = { id: string; version: number; hash: string; data: any; checks: Check[] };
 const TABS = [["review", "To review"], ["approved", "Approved, not sent"], ["sent", "Sent"], ["replied", "Replies"], ["other", "Skipped and rejected"]] as const;
 const tabOf = (s: string) => s === "awaiting_approval" || s === "draft" ? "review" : s === "approved" ? "approved" : s === "sent" ? "sent" : s === "replied" ? "replied" : "other";
-const LABEL: Record<string, [string, string]> = { published: ["Verified address", "good"], verified_public: ["Verified address", "good"], general_inbox: ["General inbox, not allowed", "bad"], "pattern-inferred": ["Guessed address, not allowed", "bad"] };
+const LABEL: Record<string, [string, string]> = { published: ["Verified address", "good"], verified_public: ["Verified address", "good"], general_inbox: ["General inbox, not allowed", "bad"], "pattern-inferred": ["Guessed address, not allowed", "bad"], apollo_verified: ["Verified by Apollo", "good"], apollo_unverified: ["Apollo: unverified, not allowed", "bad"] };
 
 export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: number; cap: number }) {
   const [items, setItems] = useState(initial);
