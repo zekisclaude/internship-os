@@ -126,5 +126,12 @@ q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("old1")
 ok("imported approval is history only", it.data.status === "awaiting_approval" && !it.data.approval && it.data.importedHistory?.approval?.hash === "h");
 r = await call("GET", "/api/agent/records/opportunities/smoke-opp", { token: C });
 ok("import fills gaps without overwriting", r.j?.data?.employer === "Acme" && r.j?.data?.reqId === "R1");
+
+r = await call("POST", "/api/admin/import", { owner: true, body: { source: "t", records: [{ collection: "contacts", id: "c1", data: { email: "new@acme.com", emailStatus: "apollo_verified", name: "SHOULD NOT CHANGE" } }] } });
+r = await call("GET", "/api/agent/records/contacts/c1", { token: C });
+ok("import does not overwrite a contact email by default", r.j?.data?.email === "pat@acme.com" && r.j?.data?.name === "Pat Lee", JSON.stringify(r.j?.data));
+await call("POST", "/api/admin/import", { owner: true, body: { source: "t", overwriteContactRoute: true, records: [{ collection: "contacts", id: "c1", data: { email: "new@acme.com", emailStatus: "apollo_verified", name: "SHOULD NOT CHANGE" } }] } });
+r = await call("GET", "/api/agent/records/contacts/c1", { token: C });
+ok("overwriteContactRoute replaces only route fields", r.j?.data?.email === "new@acme.com" && r.j?.data?.name === "Pat Lee", JSON.stringify(r.j?.data));
 console.log(`\n${pass} passed, ${failN} failed`);
 process.exit(failN ? 1 : 0);

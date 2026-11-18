@@ -1,6 +1,7 @@
 // Owner-only import of records from the earlier systems (Claude artifact export, ChatGPT Site export, research deltas).
 // Accepts {dryRun, records:[{collection,id,data}]} or {collections:{name:[{id,data}]}} or a research delta {records:[{type,id,data}]}.
 // Existing records are merged (incoming fields win only where the current record has no value), never replaced.
+// Exception: overwriteContactRoute:true lets a contacts import replace email, emailStatus, source and verified only.
 // Old approvals and send fields are kept as history under importedHistory and never count as approval here.
 import { fail, json, ownerOnly } from "@/lib/http";
 import { get, write, audit } from "@/lib/records";
@@ -34,7 +35,10 @@ export async function POST(req: Request) {
     const cur = await get(r.collection, r.id);
     let patch = data;
     if (cur) {
-      patch = Object.fromEntries(Object.entries(data).filter(([k, v]) => cur.data[k] === undefined || cur.data[k] === null || cur.data[k] === ""));
+      // Fill empty fields only, except: an import may name contact route fields in body.overwriteContactRoute
+      // (email, emailStatus, source, verified) to replace a stale address, e.g. a team inbox with an Apollo-verified one.
+      const ow = r.collection === "contacts" && body.overwriteContactRoute === true ? ["email", "emailStatus", "source", "verified"] : [];
+      patch = Object.fromEntries(Object.entries(data).filter(([k, v]) => ow.includes(k) || cur.data[k] === undefined || cur.data[k] === null || cur.data[k] === ""));
       if (!Object.keys(patch).length) { unchanged++; continue; }
     }
     if (body.dryRun) { cur ? merged++ : created++; continue; }
