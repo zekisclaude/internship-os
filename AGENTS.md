@@ -1,6 +1,6 @@
 # Instructions for every agent working on this repository (Claude, ChatGPT/Codex, and others)
 
-This is Internship OS: a private recruiting system for Zekeriah "Zeki" Redwan (Wharton, B.S. Economics, Class of 2030), aiming at a paid Summer 2027 internship, Philadelphia and DC first. The app runs on Vercel. All records live in its Postgres database, not in this repository.
+This is Internship OS: a private recruiting system for Zekeriah "Zeki" Redwan (Wharton, B.S. Economics, Class of 2030), aiming at a paid Summer 2027 internship, Philadelphia and DC first. The GitHub application runs on Vercel with a Postgres store. The earlier Sites application also retains live R2 records. Do not assume migration or parity: keep the Sites store authoritative for existing outreach until a reconciled migration and readback receipt is verified. Do not overwrite either store from a checkout or seed file. No runtime records belong in this repository.
 
 ## Roles
 
@@ -33,3 +33,11 @@ The server enforces this: each agent has its own API token and `lib/permissions.
 ## Data conventions
 
 Records are JSON documents in collections `opportunities, companies, contacts, outreach, threads, feed, runs, config`. IDs are stable slugs and are shared by both agents. Writes merge fields and need `ifVersion` for existing records (a 409 means re-read and retry). Field shapes follow the earlier systems; see `docs/DATA.md`.
+
+## Shared development and reconciliation
+
+- Read `docs/COORDINATION.md` and the append-only `coordination/*.json` receipts before starting overlapping work.
+- Public access is the owner's explicit choice, reconfirmed November 18, 2026. Do not add a mandatory password without a new request. Public mode is not identity-bound owner authorization; connected GitHub access does not establish runtime agent credentials.
+- Read both existing stores before migrating; stable IDs, original Claude IDs, employer/requisition, canonical posting URLs and contact routes all matter. Preserve notes, statuses, suppression, Gmail IDs, history and message versions. Do not carry imported approval forward as authorization.
+- Hold active drafts whose email disagrees with the linked verified, unsuppressed contact. Preserve held records and terminal history. Research flags and duplicate initial contacts block approval and compose as well as the UI.
+- After `npm run build`, run `npm run test:local` for an isolated local API smoke run and public-mode checks. It generates disposable test credentials and never uses a production database or sends email.

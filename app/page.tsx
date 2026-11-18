@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/guard";
 import { list } from "@/lib/records";
 import { faithAligned } from "@/lib/faith";
+import { queueItems } from "@/lib/queue";
 
 export const dynamic = "force-dynamic";
 const DAY = 86400e3;
@@ -8,7 +9,7 @@ const fmt = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("en-US"
 
 export default async function Dashboard() {
   await requireUser();
-  const [opps, cos, out] = await Promise.all([list("opportunities"), list("companies"), list("outreach")]);
+  const [opps, cos, out] = await Promise.all([list("opportunities"), list("companies"), queueItems()]);
   const O = opps.map((r) => ({ id: r.id, ...r.data })) as any[];
   const C = cos.map((r) => ({ id: r.id, ...r.data })) as any[];
   const M = out.map((r) => ({ id: r.id, ...r.data })) as any[];

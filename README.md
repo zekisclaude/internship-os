@@ -13,7 +13,7 @@ Agents use a token-protected API (`/api/openapi`). Neither agent can approve or 
 ### 1. Deploy on Vercel
 1. Go to vercel.com, sign in with GitHub, choose **Add New > Project**, and import `zekisclaude/internship-os`. Leave the defaults.
 2. In the project, open **Storage > Create Database > Neon (Postgres)** and connect it to the project. This sets `DATABASE_URL`.
-3. In **Settings > Deployment Protection**, leave Vercel Authentication on for preview deployments. The production site has its own Google sign-in.
+3. In **Settings > Deployment Protection**, leave Vercel Authentication on for preview deployments. Production uses the optional site password described below; public access is the owner's current choice.
 
 ### 2. Sending
 No Gmail password or Google setup. An approved email opens in your own Gmail already filled in, you press Send, then click "I sent it" on the site. Set `SENDER_GMAIL` if you use several Google accounts in the browser.
@@ -45,7 +45,9 @@ npm install
 npm run dev        # uses an in-memory database when DATABASE_URL is empty
 npm run typecheck
 npm run build
-npm run smoke      # with the server running; see the header of scripts/smoke.mjs
+npm run smoke      # with a local server running; see scripts/smoke.mjs
+npm run test:local # after build; isolated API smoke and public-mode checks
+npm run test:gmail-flow # approval, loading errors and exact-message Gmail preparation
 ```
 
 ## How sending works
@@ -54,3 +56,9 @@ npm run smoke      # with the server running; see the header of scripts/smoke.mj
 3. **Approve** stores a hash of the exact recipient, subject and body. Any later edit clears it.
 4. **Open in Gmail** re-checks the hash and the daily limit, then opens your Gmail compose window with the exact approved text. You press Send in Gmail, then **I sent it** records the send and sets the follow-up date.
 5. ChatGPT watches your Gmail for replies and marks the message `replied`.
+
+## Continuing the existing project
+
+Read [the coordination protocol](docs/COORDINATION.md) before importing records or changing runtime connections. `/outreach` and `/queue` use the same review queue. Active drafts whose address does not match their linked verified contact stay on hold without deleting their text or history. Research flags and duplicate initial contacts block approval and opening Gmail.
+
+The Gmail button opens the approved compose URL in the current tab, which works in browsers that block popups. A direct Gmail link remains available if navigation is blocked. Use Back to return to the queue after sending. Owner actions validate the actual request origin so deployment aliases work even when APP_URL names another alias.

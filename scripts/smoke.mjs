@@ -1,5 +1,7 @@
 // Smoke test for the agent API and the approval rules. Run against a local server:
 //   BASE=http://localhost:3000 SITE_PASSWORD=... CLAUDE_AGENT_TOKEN=... CHATGPT_AGENT_TOKEN=... node scripts/smoke.mjs
+import { createHash } from "node:crypto";
+
 const B = process.env.BASE || "http://localhost:3000";
 const C = process.env.CLAUDE_AGENT_TOKEN, G = process.env.CHATGPT_AGENT_TOKEN;
 let cookie = "";
@@ -14,6 +16,13 @@ const call = async (method, path, { token, body, owner, origin = B } = {}) => {
   return { s: r.status, j, loc: r.headers.get("location") };
 };
 
+// Read a held record through the agent API for negative action tests. The active
+// queue intentionally omits it, but direct approval must still be refused.
+const rawItem = async (id) => {
+  const r = await call("GET", `/api/agent/records/outreach/${id}`, { token: G });
+  const data = r.j.data;
+  return { ...r.j, hash: createHash("sha256").update(JSON.stringify([id, data.to || "", data.subject || "", data.body || ""])).digest("hex") };
+};
 const unlock = async (pw) => fetch(B + "/api/auth/password", { method: "POST", body: new URLSearchParams({ password: pw }), redirect: "manual" });
 let u = await unlock("wrong-password");
 ok("wrong password is refused", (u.headers.get("location") || "").includes("error=wrong") && !(u.headers.get("set-cookie") || "").includes("ios_session="));
@@ -56,6 +65,10 @@ ok("agent token cannot use owner routes", (await call("POST", "/api/outreach/o1/
 ok("owner route refuses a foreign origin", (await call("POST", "/api/outreach/o1/approve", { owner: true, origin: "https://evil.example", body: { hash: it.hash } })).s === 401);
 ok("approve with a stale hash is refused", (await call("POST", "/api/outreach/o1/approve", { owner: true, body: { hash: "old" } })).s === 409);
 r = await call("POST", "/api/outreach/o1/approve", { owner: true, body: { hash: it.hash } });
+ok("unresolved research flag blocks approval", r.s === 422);
+await call("PATCH", "/api/agent/records/outreach/o1", { token: C, body: { patch: { reviewFlags: [] }, ifVersion: it.version } });
+q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
+r = await call("POST", "/api/outreach/o1/approve", { owner: true, body: { hash: it.hash } });
 ok("owner approves the exact message", r.s === 200 && r.j?.ok, JSON.stringify(r.j));
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
 ok("status is approved", it.data.status === "approved" && it.data.approval?.hash === it.hash);
@@ -67,6 +80,10 @@ await call("POST", "/api/outreach/o1/approve", { owner: true, body: { hash: it.h
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
 r = await call("POST", "/api/outreach/o1/compose", { owner: true, body: { hash: it.hash } });
 ok("open in Gmail returns a filled compose link", r.s === 200 && r.j?.url?.startsWith("https://mail.google.com/mail/?view=cm") && r.j.url.includes("to=pat%40acme.com"), JSON.stringify(r.j));
+await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { email: "changed@acme.com" }, ifVersion: 1 } });
+ok("recipient change after approval blocks compose", (await call("POST", "/api/outreach/o1/compose", { owner: true, body: { hash: it.hash } })).s === 422);
+ok("recipient change after approval blocks sent record", (await call("POST", "/api/outreach/o1/sent", { owner: true, body: { hash: it.hash } })).s === 422);
+await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { email: "pat@acme.com" }, ifVersion: 2 } });
 r = await call("POST", "/api/outreach/o1/sent", { owner: true, body: { hash: it.hash } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o1");
 ok("I sent it records the send", r.s === 200 && it.data.status === "sent" && !!it.data.sentAt && !!it.data.followUpDue, JSON.stringify(it.data).slice(0,200));
@@ -75,15 +92,27 @@ ok("chatgpt can mark a sent message replied", r.s === 200, JSON.stringify(r.j));
 r = await call("PATCH", "/api/agent/records/outreach/o4", { token: G, body: { patch: { status: "replied" }, ifVersion: 1 } });
 ok("chatgpt cannot mark an unsent message replied", r.s === 403 || r.s === 409);
 
-await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { optOut: true }, ifVersion: 1 } });
+// A verified label on a draft cannot override a different linked contact.
+await call("PATCH", "/api/agent/records/outreach/mismatch", { token: G, body: { patch: { contactId: "c1", to: "other@acme.com", toStatus: "published", subject: "Mismatch", body: "Test", status: "awaiting_approval" } } });
+q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("mismatch");
+ok("mismatched contact is held", !q.j.items.some((x) => x.id === "mismatch"));
+ok("direct approval cannot bypass held route", (await call("POST", "/api/outreach/mismatch/approve", { owner: true, body: { hash: it.hash } })).s === 422);
+
+await call("PATCH", "/api/agent/records/outreach/duplicate", { token: G, body: { patch: { contactId: "c1", companyId: "acme", to: "pat@acme.com", toStatus: "published", subject: "Another initial", body: "Test", status: "awaiting_approval" } } });
+it = await rawItem("duplicate");
+ok("prior replied initial blocks duplicate firm outreach", (await call("POST", "/api/outreach/duplicate/approve", { owner: true, body: { hash: it.hash } })).s === 422);
+
+await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { optOut: true }, ifVersion: 3 } });
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o3", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "published", subject: "Follow up on Acme", body: "Hi Pat,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
-q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o3");
+q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("o3");
+ok("opted-out draft is held, not deleted", !q.j.items.some((x) => x.id === "o3") && q.j.heldCount >= 1 && it.data.subject === "Follow up on Acme");
 ok("opt-out blocks approval", (await call("POST", "/api/outreach/o3/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o4", patch: { to: "first.last@bigbank.com", toStatus: "pattern-inferred", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
-q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o4");
+q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("o4");
+ok("guessed route stays out of the active queue", !q.j.items.some((x) => x.id === "o4"));
 ok("guessed address cannot be approved", (await call("POST", "/api/outreach/o4/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o5", patch: { to: "info@acme.com", toStatus: "general_inbox", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
-q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o5");
+q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("o5");
 ok("general inbox cannot be approved", (await call("POST", "/api/outreach/o5/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 ok("openapi is served", (await call("GET", "/api/openapi")).j?.openapi === "3.1.0");
 
@@ -93,7 +122,7 @@ r = await call("POST", "/api/admin/import", { owner: true, body: { source: "test
   { collection: "outreach", id: "old1", data: { to: "a@b.com", toStatus: "published", subject: "Old", body: "Hi", status: "approved", approval: { hash: "h", to: "a@b.com" } } },
   { collection: "opportunities", id: "smoke-opp", data: { employer: "SHOULD NOT OVERWRITE", reqId: "R1" } } ] } });
 ok("owner import works", r.s === 200 && r.j?.created === 1 && r.j?.merged === 1, JSON.stringify(r.j));
-q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "old1");
+q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("old1");
 ok("imported approval is history only", it.data.status === "awaiting_approval" && !it.data.approval && it.data.importedHistory?.approval?.hash === "h");
 r = await call("GET", "/api/agent/records/opportunities/smoke-opp", { token: C });
 ok("import fills gaps without overwriting", r.j?.data?.employer === "Acme" && r.j?.data?.reqId === "R1");

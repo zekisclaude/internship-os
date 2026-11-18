@@ -1,10 +1,10 @@
 // Owner-only actions on one message: approve, unapprove, edit, skip, compose (open in Gmail), sent (mark as sent).
 // Approval is bound to the exact recipient, subject and body the owner saw (a hash). Any edit clears it.
 import { fail, json, ownerOnly } from "@/lib/http";
-import { get, write, audit } from "@/lib/records";
+import { get, list, write, audit } from "@/lib/records";
 import { addBusinessDays, checks, messageHash } from "@/lib/outreach";
 import { gmailComposeUrl } from "@/lib/compose";
-import { sentToday } from "@/lib/queue";
+import { hasOtherInitial, sentToday } from "@/lib/queue";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; action: string }> }) {
   const u = await ownerOnly(req);
@@ -32,7 +32,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     if (body.hash !== hash) return fail(409, "the message changed since you opened it; reload and review again");
     if (!["awaiting_approval", "draft", "skipped"].includes(o.status)) return fail(409, `cannot approve a message with status ${o.status}`);
     const contact = o.contactId ? await get("contacts", o.contactId) : null;
-    const hard = checks(o, { optOut: !!contact?.data.optOut }).filter((c) => c.hard && !c.ok);
+    const hard = checks(o, { contact: contact?.data, optOut: !!contact?.data.optOut,
+      otherLive: hasOtherInitial(id, o, await list("outreach")) }).filter((c) => c.hard && !c.ok);
     if (hard.length) return fail(422, "fix before approving", { failed: hard.map((c) => c.label) });
     const approval = { version: o.version || 1, hash, to: o.to, at: new Date().toISOString(), by: u.email };
     const history = [...(o.history || []), { at: approval.at, event: "approved", by: u.email, version: approval.version }];
@@ -45,7 +46,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     if (o.approval.hash !== hash || o.approval.to !== o.to) return fail(409, "the message changed after approval; approve it again");
     if (body.hash !== hash) return fail(409, "the message changed since you opened it; reload");
     const contact = o.contactId ? await get("contacts", o.contactId) : null;
-    const hard = checks(o, { optOut: !!contact?.data.optOut }).filter((c) => c.hard && !c.ok);
+    const hard = checks(o, { contact: contact?.data, optOut: !!contact?.data.optOut,
+      otherLive: hasOtherInitial(id, o, await list("outreach")) }).filter((c) => c.hard && !c.ok);
     if (hard.length) return fail(422, "blocked", { failed: hard.map((c) => c.label) });
     const now = new Date();
     if (action === "compose") {

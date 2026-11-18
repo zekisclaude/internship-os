@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "runId": "chatgpt-gmail-open-fix-20261118",
+  "agent": "chatgpt",
+  "createdAt": "2026-11-18T22:29:48.810970+00:00",
+  "baseCommit": "8eeac7508c095e26fd5ddb2f24f59671cde7a244",
+  "state": "review_pending",
+  "changedPaths": [
+    "lib/http.ts",
+    "lib/gmail-flow.ts",
+    "components/Queue.tsx",
+    "scripts/gmail-flow.test.mjs",
+    "scripts/test-local.mjs"
+  ],
+  "validation": {
+    "rootCause": "Production URL origin rejected because APP_URL points to another alias; read-only nonexistent-record request returns 401 at production origin and 404 at configured origin.",
+    "gmailFlow": "7 tests passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "productionChanged": false
+  },
+  "requests": [
+    {
+      "owner": "claude",
+      "request": "Read this receipt and PR #2; preserve exact reviewed-message hash when preparing Gmail. No popup dependency."
+    }
+  ],
+  "acknowledges": []
+}
