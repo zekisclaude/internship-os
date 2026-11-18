@@ -1,4 +1,4 @@
-// Owner-only actions on one message: approve, unapprove, edit, skip, compose (open in Gmail), sent (mark as sent).
+// Owner-only actions on one message: approve, unapprove, edit, skip, resolveflags, compose (open in Gmail), sent (mark as sent).
 // Approval is bound to the exact recipient, subject and body the owner saw (a hash). Any edit clears it.
 import { fail, json, ownerOnly } from "@/lib/http";
 import { get, list, write, audit } from "@/lib/records";
@@ -21,6 +21,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     const patch: Record<string, unknown> = {};
     for (const k of ["to", "subject", "body", "toStatus"]) if (typeof body[k] === "string") patch[k] = body[k];
     const r = await write(actor, { collection: "outreach", id, patch, ifVersion: body.ifVersion });
+    return json(r, r.ok ? 200 : 409);
+  }
+  if (action === "resolveflags") {
+    // Owner confirms the research flags on this draft are dealt with. The message text is untouched, so approval state is untouched.
+    const at = new Date().toISOString();
+    const flags = (o.reviewFlags || []).map((f: any) => f.resolved ? f : { ...f, resolved: true, resolvedBy: u.email, resolvedAt: at, resolutionNote: String(body.note || "").slice(0, 300) });
+    const history = [...(o.history || []), { at, event: "flags_resolved", by: u.email, note: String(body.note || "").slice(0, 300) }];
+    const r = await write(actor, { collection: "outreach", id, patch: { reviewFlags: flags, history }, ifVersion: body.ifVersion ?? rec.version }, { serverFields: true });
+    if (r.ok) await audit(actor, "resolve_flags", `outreach/${id}`, String(body.note || ""));
     return json(r, r.ok ? 200 : 409);
   }
   if (action === "skip" || action === "unapprove") {

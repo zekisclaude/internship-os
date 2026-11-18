@@ -33,7 +33,7 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.ok === false) { setMsg({ t: (j.error || "Failed") + (j.failed ? `: ${j.failed.join("; ")}` : ""), bad: true }); return false; }
       await reload();
-      setMsg({ t: { approve: "Approved.", sent: `Marked as sent to ${it.data.to}.`, skip: "Skipped.", edit: "Saved. It needs approval again.", unapprove: "Approval removed." }[action] || "Done." });
+      setMsg({ t: { approve: "Approved.", sent: `Marked as sent to ${it.data.to}.`, skip: "Skipped.", edit: "Saved. It needs approval again.", resolveflags: "Flag marked resolved.", unapprove: "Approval removed." }[action] || "Done." });
       return true;
     } finally { setBusy(false); }
   }
@@ -107,7 +107,7 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
               </>
             )}
             {(o.evidence || []).length > 0 && <div className="small mut">Hook: {(o.evidence || []).map((e: any, k: number) => <span key={k}>{e.claim || "source"} {e.url && <a href={e.url} target="_blank" rel="noreferrer">link</a>}{k < o.evidence.length - 1 ? "; " : ""}</span>)}</div>}
-            {flags.length > 0 && <div className="msg bad small">Research flag: {flags.map((f: any) => f.reason).join(" | ")}</div>}
+            {flags.length > 0 && <div className="msg bad small">Research flag: {flags.map((f: any) => f.reason).join(" | ")} <button className="btn" style={{ marginLeft: 8 }} disabled={busy} onClick={() => { const note = window.prompt("How did you resolve this? (optional note)", "Owner confirmed it is fine"); if (note !== null) act(it, "resolveflags", { note }); }}>Mark resolved</button></div>}
             <div className="checks">{it.checks.map((c) => <span key={c.id} className={"pill " + (c.ok ? "good" : c.hard ? "bad" : "warn")}>{c.ok ? "OK" : "Check"}: {c.label}</span>)}</div>
             <div className="row" style={{ marginTop: 10 }}>
               {["awaiting_approval", "draft", "skipped"].includes(o.status) && <>

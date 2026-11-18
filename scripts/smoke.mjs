@@ -133,5 +133,16 @@ ok("import does not overwrite a contact email by default", r.j?.data?.email === 
 await call("POST", "/api/admin/import", { owner: true, body: { source: "t", overwriteContactRoute: true, records: [{ collection: "contacts", id: "c1", data: { email: "new@acme.com", emailStatus: "apollo_verified", name: "SHOULD NOT CHANGE" } }] } });
 r = await call("GET", "/api/agent/records/contacts/c1", { token: C });
 ok("overwriteContactRoute replaces only route fields", r.j?.data?.email === "new@acme.com" && r.j?.data?.name === "Pat Lee", JSON.stringify(r.j?.data));
+
+await call("POST", "/api/agent/batch", { token: G, body: { items: [
+  { collection: "contacts", id: "c2", patch: { name: "Dana Roe", company: "Beta", companyId: "beta", email: "dana@beta.com", emailStatus: "apollo_verified" } },
+  { collection: "outreach", id: "o8", patch: { contactId: "c2", companyId: "beta", company: "Beta", toName: "Dana Roe", to: "dana@beta.com", toStatus: "apollo_verified", subject: "Wharton first-year, question on Beta", body: "Hi Dana,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval", evidence: [{ claim: "site", url: "https://beta.com" }] } }] } });
+await call("PATCH", "/api/agent/records/outreach/o8", { token: C, body: { patch: { reviewFlags: [{ by: "claude", reason: "citizenship rule", resolved: false }] }, ifVersion: 1 } });
+q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o8");
+ok("an open flag blocks approval", it && it.checks.some((c) => c.id === "flags" && !c.ok));
+ok("agents cannot resolve flags", (await call("POST", "/api/outreach/o8/resolveflags", { token: C, body: {} })).s === 401);
+r = await call("POST", "/api/outreach/o8/resolveflags", { owner: true, body: { note: "citizenship confirmed", ifVersion: it.version } });
+q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o8");
+ok("owner resolves the flag with a note", r.s === 200 && it.checks.find((c) => c.id === "flags").ok && it.data.reviewFlags[0].resolvedBy && it.data.history.some((h) => h.event === "flags_resolved"), JSON.stringify(r.j));
 console.log(`\n${pass} passed, ${failN} failed`);
 process.exit(failN ? 1 : 0);
