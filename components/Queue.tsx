@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import BulkGmailDrafts from "./BulkGmailDrafts";
 import { prepareGmail } from "@/lib/gmail-flow";
 
 type Check = { id: string; label: string; ok: boolean; hard: boolean };
@@ -67,6 +68,7 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       <h1>Review queue</h1>
       {held > 0 && <p className="msg warn">{held} drafts are on hold until their recipient matches a verified, unsuppressed contact. Their text and history are preserved.</p>}
       <p className="sub">Emails ChatGPT drafted. Nothing goes out until you approve the exact message and press Send in your own Gmail. Sent today: {sentCount} of {cap}. Keys: <span className="kbd">J</span>/<span className="kbd">K</span> move, <span className="kbd">A</span> approve, <span className="kbd">E</span> edit, <span className="kbd">S</span> skip.</p>
+      <BulkGmailDrafts items={items} onComplete={reload} />
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={"btn" + (tab === k ? " pri" : "")} onClick={() => { setTab(k); setSel(0); }}>{l} ({items.filter((i) => tabOf(i.data.status) === k).length})</button>)}</div>
       {msg && <div role="status" className={"msg " + (msg.bad ? "bad" : "good")}>{msg.t}</div>}
       {gmailLink && <p><a href={gmailLink} target="_blank" rel="noopener noreferrer">Open the approved message in Gmail</a></p>}

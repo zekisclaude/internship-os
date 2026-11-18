@@ -5,7 +5,7 @@ import { once } from "node:events";
 const cwd=process.cwd();
 const socket=createServer(); socket.listen(0,"127.0.0.1"); await once(socket,"listening");
 const port=socket.address().port; await new Promise(r=>socket.close(r));
-const env={...process.env, DATABASE_URL:"", VERCEL:"", SITE_PASSWORD:randomBytes(24).toString("hex"), SESSION_SECRET:randomBytes(32).toString("hex"), ENCRYPTION_KEY:randomBytes(32).toString("hex"), CLAUDE_AGENT_TOKEN:randomBytes(32).toString("hex"), CHATGPT_AGENT_TOKEN:randomBytes(32).toString("hex"), APP_URL:`http://127.0.0.1:${port}`, BASE:`http://127.0.0.1:${port}`, NEXT_TELEMETRY_DISABLED:"1"};
+const env={...process.env, DATABASE_URL:"", VERCEL:"", GOOGLE_CLIENT_ID:"", GOOGLE_CLIENT_SECRET:"", SITE_PASSWORD:randomBytes(24).toString("hex"), SESSION_SECRET:randomBytes(32).toString("hex"), ENCRYPTION_KEY:randomBytes(32).toString("hex"), CLAUDE_AGENT_TOKEN:randomBytes(32).toString("hex"), CHATGPT_AGENT_TOKEN:randomBytes(32).toString("hex"), APP_URL:`http://127.0.0.1:${port}`, BASE:`http://127.0.0.1:${port}`, NEXT_TELEMETRY_DISABLED:"1"};
 const server=spawn(process.execPath,["node_modules/next/dist/bin/next","start","--hostname","127.0.0.1","--port",String(port)],{cwd,env,stdio:["ignore","pipe","pipe"]});
 let logs=""; for(const s of [server.stdout,server.stderr])s.on("data",d=>logs+=d);
 let exit=1;
@@ -34,6 +34,15 @@ try {
   if(r.status!==expected)throw new Error(`Origin check returned ${r.status}, expected ${expected}`);
   console.log(`PASS ${expected===404 ? "same-origin alias accepted despite APP_URL mismatch" : "foreign origin rejected"}`);
  }
+ const gmailStatus=await (await fetch(env.BASE+"/api/gmail/status")).json();
+ if(gmailStatus.connected || gmailStatus.configured)throw new Error("Unconfigured Gmail must be disconnected");
+ console.log("PASS Gmail reports setup required without exposing credentials");
+ const gmailWrite=await fetch(env.BASE+"/api/gmail-drafts",{method:"POST",headers:{origin:env.BASE,"content-type":"application/json"},body:JSON.stringify({id:"test",hash:"test"})});
+ if(gmailWrite.status!==401)throw new Error("Public visitor must not write Gmail drafts");
+ console.log("PASS public access alone cannot create Gmail drafts");
+ const gmailConnect=await fetch(env.BASE+"/api/gmail/connect",{method:"POST",headers:{origin:env.BASE}});
+ if(gmailConnect.status!==503)throw new Error("Gmail connect must report missing OAuth setup");
+ console.log("PASS missing OAuth setup gives an actionable failure");
  const denied=await fetch(env.BASE+"/api/agent/batch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:[]})});
  if(denied.status!==401)throw new Error("Anonymous agent write was not refused");
  console.log("PASS public mode still requires agent credentials for agent writes");

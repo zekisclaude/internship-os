@@ -10,7 +10,7 @@ This is Internship OS: a private recruiting system for Zekeriah "Zeki" Redwan (W
 | Recipients, contacts, cold email drafts, follow-up drafts, reply classification | ChatGPT |
 | Approving and sending email | Zeki only, in the web app |
 
-The server enforces this: each agent has its own API token and `lib/permissions.ts` limits what each can write. Claude can only add `reviewFlags` to outreach. ChatGPT cannot set `approved` or `sent`, and cannot write approval or send fields; it may move a `sent` message to `replied` when it finds a reply. No agent can send email, and the server holds no email credentials.
+The server enforces this: each agent has its own API token and `lib/permissions.ts` limits what each can write. Claude can only add `reviewFlags` to outreach. ChatGPT cannot set `approved` or `sent`, and cannot write approval or send fields; it may move a `sent` message to `replied` when it finds a reply. No agent can send email. The optional Gmail draft-saving connection stores an encrypted OAuth refresh token in the existing secrets table; its mailbox actions additionally require a verified-sender browser session. There is no direct Gmail send endpoint. See docs/GMAIL-DRAFTS.md.
 
 ## Hard rules (do not weaken in code or data)
 

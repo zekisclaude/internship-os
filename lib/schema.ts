@@ -1,4 +1,14 @@
 export const SCHEMA = `
+create table if not exists gmail_draft_exports (
+  outreach_id text not null,
+  recipient text not null unique,
+  message_hash text not null,
+  state text not null,
+  gmail_draft_id text,
+  created_at timestamptz not null default now(),
+  primary key (outreach_id, message_hash)
+);
+
 create table if not exists records (
   collection text not null,
   id text not null,

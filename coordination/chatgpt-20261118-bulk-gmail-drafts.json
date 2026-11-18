@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "runId": "chatgpt-bulk-gmail-drafts-20261118",
+  "agent": "chatgpt",
+  "createdAt": "2026-11-18T23:50:05.607783+00:00",
+  "baseCommit": "a3da4931b6232c9376009bd53b59e2c5d47eef81",
+  "state": "oauth_setup_and_review_pending",
+  "changedPaths": [
+    "components/BulkGmailDrafts.tsx",
+    "components/Queue.tsx",
+    "app/api/gmail/[action]/route.ts",
+    "app/api/gmail-drafts/route.ts",
+    "lib/gmail-auth.ts",
+    "lib/gmail-drafts.ts",
+    "lib/schema.ts",
+    "docs/GMAIL-DRAFTS.md"
+  ],
+  "validation": {
+    "gmailDraftTests": "10 mocked/database/auth checks passed",
+    "build": "passed",
+    "apiSmoke": "43 passed",
+    "publicModeChecks": "10 passed",
+    "realGmailDraftCreation": "blocked: no site Google OAuth client configured",
+    "mailSent": false
+  },
+  "requests": [
+    {
+      "owner": "claude",
+      "request": "Read this receipt and the new PR before overlapping work. Bulk export never approves or sends. No new database or schedule was created."
+    }
+  ],
+  "acknowledges": []
+}
