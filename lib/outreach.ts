@@ -1,6 +1,7 @@
 import { sha256Hex } from "./crypto";
 
 export type Outreach = Record<string, any>;
+const GENERIC = /^(info|hello|hi|contact|contactus|team|careers|career|recruiting|recruitment|jobs|admin|office|support|press|media|general|internship|internships|mail|enquiries|inquiries|ir|sales|help|hr)$/i;
 const EMAIL = /^[^\s@<>(),;:"]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 export function messageHash(id: string, o: Outreach): string {
@@ -18,8 +19,10 @@ export function checks(o: Outreach, ctx: { optOut?: boolean; otherLive?: boolean
   return [
     { id: "email", label: "Valid email address", ok: EMAIL.test(o.to || ""), hard: true },
     { id: "optout", label: "Recipient has not opted out", ok: !o.suppressed && !ctx.optOut, hard: true },
-    // Owner rule: only verified addresses, meaning ones the firm or the person published. No guesses, no general inboxes.
-    { id: "label", label: status === "pattern-inferred" ? "Address is a guess, not verified" : status === "general_inbox" ? "General inbox, not a verified personal address" : status === "apollo_verified" ? "Verified by Apollo" : status === "apollo_unverified" ? "Apollo could not verify this address" : ["published", "verified_public"].includes(status) ? "Verified: published address" : "Address not verified", ok: ["published", "verified_public", "apollo_verified"].includes(status), hard: true },
+    // Owner rule (2026-11-18): individual people only, with an address Apollo reports as verified.
+    // Team and role inboxes (info@, hello@, careers@ ...) and every other label are blocked.
+    { id: "label", label: status === "apollo_verified" ? "Verified by Apollo" : status === "apollo_unverified" ? "Apollo could not verify this address" : status === "general_inbox" ? "Team inbox, not an individual" : status === "pattern-inferred" ? "Address is a guess, not verified" : "Not verified by Apollo", ok: status === "apollo_verified", hard: true },
+    { id: "person", label: "Individual's address, not a team inbox", ok: !GENERIC.test((o.to || "").split("@")[0]), hard: true },
     { id: "dash", label: "No em dashes", ok: !/[—]/.test(`${o.subject} ${o.body}`), hard: false },
     { id: "words", label: `Body length ${w} words (90 to 150)`, ok: w >= 90 && w <= 150, hard: false },
     { id: "subject", label: "Subject 3 to 7 words", ok: (o.subject || "").split(/\s+/).filter(Boolean).length <= 7 && (o.subject || "").split(/\s+/).filter(Boolean).length >= 3, hard: false },

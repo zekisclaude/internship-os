@@ -33,9 +33,9 @@ r = await call("PATCH", "/api/agent/records/contacts/c1", { token: C, body: { pa
 ok("claude cannot write contacts", r.s === 403);
 
 r = await call("POST", "/api/agent/batch", { token: G, body: { items: [
-  { collection: "contacts", id: "c1", patch: { name: "Pat Lee", company: "Acme", companyId: "acme", email: "pat@acme.com", emailStatus: "published" } },
-  { collection: "outreach", id: "o1", patch: { contactId: "c1", companyId: "acme", company: "Acme", toName: "Pat Lee", to: "pat@acme.com", toStatus: "published", tier: "A", subject: "Wharton first-year, question on Acme", body: "Hi Pat,\n\nTest body.\n\nThanks,\nZeki", status: "awaiting_approval", evidence: [{ claim: "team page", url: "https://acme.com/team" }] } },
-  { collection: "outreach", id: "o2", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "published", subject: "s", body: "b", status: "approved" } } ] } });
+  { collection: "contacts", id: "c1", patch: { name: "Pat Lee", company: "Acme", companyId: "acme", email: "pat@acme.com", emailStatus: "apollo_verified" } },
+  { collection: "outreach", id: "o1", patch: { contactId: "c1", companyId: "acme", company: "Acme", toName: "Pat Lee", to: "pat@acme.com", toStatus: "apollo_verified", tier: "A", subject: "Wharton first-year, question on Acme", body: "Hi Pat,\n\nTest body.\n\nThanks,\nZeki", status: "awaiting_approval", evidence: [{ claim: "team page", url: "https://acme.com/team" }] } },
+  { collection: "outreach", id: "o2", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "apollo_verified", subject: "s", body: "b", status: "approved" } } ] } });
 ok("chatgpt creates contact and draft", r.j?.results?.[0]?.ok && r.j?.results?.[1]?.ok, JSON.stringify(r.j));
 ok("chatgpt cannot set approved", r.j?.results?.[2]?.ok === false);
 r = await call("PATCH", "/api/agent/records/outreach/o1", { token: G, body: { patch: { approval: { hash: "x" } }, ifVersion: 1 } });
@@ -76,7 +76,7 @@ r = await call("PATCH", "/api/agent/records/outreach/o4", { token: G, body: { pa
 ok("chatgpt cannot mark an unsent message replied", r.s === 403 || r.s === 409);
 
 await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { optOut: true }, ifVersion: 1 } });
-await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o3", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "published", subject: "Follow up on Acme", body: "Hi Pat,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
+await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o3", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "apollo_verified", subject: "Follow up on Acme", body: "Hi Pat,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o3");
 ok("opt-out blocks approval", (await call("POST", "/api/outreach/o3/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o4", patch: { to: "first.last@bigbank.com", toStatus: "pattern-inferred", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
@@ -85,12 +85,18 @@ ok("guessed address cannot be approved", (await call("POST", "/api/outreach/o4/a
 await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o5", patch: { to: "info@acme.com", toStatus: "general_inbox", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o5");
 ok("general inbox cannot be approved", (await call("POST", "/api/outreach/o5/approve", { owner: true, body: { hash: it.hash } })).s === 422);
+await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o6", patch: { to: "info@acme.com", toStatus: "apollo_verified", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
+q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o6");
+ok("team inbox cannot be approved even if labeled verified", (await call("POST", "/api/outreach/o6/approve", { owner: true, body: { hash: it.hash } })).s === 422);
+await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o7", patch: { to: "pat@acme.com", toStatus: "published", subject: "Wharton first-year, quick question", body: "Hi A,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
+q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o7");
+ok("published-only address cannot be approved", (await call("POST", "/api/outreach/o7/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 ok("openapi is served", (await call("GET", "/api/openapi")).j?.openapi === "3.1.0");
 
 r = await call("POST", "/api/admin/import", { token: C, body: { records: [] } });
 ok("agents cannot use import", r.s === 401);
 r = await call("POST", "/api/admin/import", { owner: true, body: { source: "test", records: [
-  { collection: "outreach", id: "old1", data: { to: "a@b.com", toStatus: "published", subject: "Old", body: "Hi", status: "approved", approval: { hash: "h", to: "a@b.com" } } },
+  { collection: "outreach", id: "old1", data: { to: "a@b.com", toStatus: "apollo_verified", subject: "Old", body: "Hi", status: "approved", approval: { hash: "h", to: "a@b.com" } } },
   { collection: "opportunities", id: "smoke-opp", data: { employer: "SHOULD NOT OVERWRITE", reqId: "R1" } } ] } });
 ok("owner import works", r.s === 200 && r.j?.created === 1 && r.j?.merged === 1, JSON.stringify(r.j));
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "old1");
