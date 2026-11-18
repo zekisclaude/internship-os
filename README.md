@@ -62,3 +62,7 @@ npm run test:gmail-flow # approval, loading errors and exact-message Gmail prepa
 Read [the coordination protocol](docs/COORDINATION.md) before importing records or changing runtime connections. `/outreach` and `/queue` use the same review queue. Active drafts whose address does not match their linked verified contact stay on hold without deleting their text or history. Research flags and duplicate initial contacts block approval and opening Gmail.
 
 The Gmail button opens the approved compose URL in the current tab, which works in browsers that block popups. A direct Gmail link remains available if navigation is blocked. Use Back to return to the queue after sending. Owner actions validate the actual request origin so deployment aliases work even when APP_URL names another alias.
+
+## Save all to Gmail drafts
+
+The review queue includes a bulk save action for eligible, unsent messages. It skips existing Gmail correspondence and preserves approval status. The site needs its own Google OAuth connection; see [Gmail draft setup](docs/GMAIL-DRAFTS.md). Setup is separate from an assistant's Gmail access.
