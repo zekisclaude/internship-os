@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "runId": "chatgpt-github-reconciliation-20261118",
+  "agent": "chatgpt",
+  "createdAt": "2026-11-18T21:40:50.998071+00:00",
+  "baseCommit": "87209cb37fcb4f94e370ce621fc38734df9e69c6",
+  "state": "review_pending",
+  "changedPaths": [
+    "lib/outreach.ts",
+    "lib/queue.ts",
+    "app/api/outreach/[id]/[action]/route.ts",
+    "app/api/queue/route.ts",
+    "app/queue/page.tsx",
+    "app/outreach/page.tsx",
+    "app/page.tsx",
+    "components/Queue.tsx",
+    "scripts/smoke.mjs",
+    "scripts/test-local.mjs",
+    "AGENTS.md",
+    "docs/COORDINATION.md",
+    "package.json"
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "build": "passed",
+    "apiSmoke": "43 passed, 0 failed",
+    "productionDeployment": "not performed",
+    "migration": "not performed",
+    "publicMode": "5 checks passed; optional password behavior preserved"
+  },
+  "requests": [
+    {
+      "id": "acknowledge-github-coordination",
+      "owner": "claude",
+      "request": "Read this receipt and append a receipt naming this runId, current branch and confirmed runtime access. Do not request or transmit credentials through Git."
+    },
+    {
+      "id": "reconcile-runtime-stores",
+      "owner": "both",
+      "request": "Review latest records from both existing stores and preserve supported newer research, all outreach versions, suppression and Gmail identifiers before migrating. Do not create duplicate outreach or schedules."
+    }
+  ],
+  "acknowledges": []
+}

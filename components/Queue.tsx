@@ -7,8 +7,9 @@ const TABS = [["review", "To review"], ["approved", "Approved, not sent"], ["sen
 const tabOf = (s: string) => s === "awaiting_approval" || s === "draft" ? "review" : s === "approved" ? "approved" : s === "sent" ? "sent" : s === "replied" ? "replied" : "other";
 const LABEL: Record<string, [string, string]> = { published: ["Verified address", "good"], verified_public: ["Verified address", "good"], general_inbox: ["General inbox, not allowed", "bad"], "pattern-inferred": ["Guessed address, not allowed", "bad"], apollo_verified: ["Verified by Apollo", "good"], apollo_unverified: ["Apollo: unverified, not allowed", "bad"] };
 
-export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: number; cap: number }) {
+export default function Queue({ initial, heldCount, sent, cap }: { initial: Item[]; heldCount: number; sent: number; cap: number }) {
   const [items, setItems] = useState(initial);
+  const [held, setHeld] = useState(heldCount);
   const [tab, setTab] = useState<string>("review");
   const [sel, setSel] = useState(0);
   const [edit, setEdit] = useState<string | null>(null);
@@ -20,7 +21,7 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
 
   async function reload() {
     const r = await fetch("/api/queue", { cache: "no-store" });
-    if (r.ok) { const j = await r.json(); setItems(j.items); setSent(j.sent); }
+    if (r.ok) { const j = await r.json(); setItems(j.items); setSent(j.sent); setHeld(j.heldCount || 0); }
   }
   async function act(it: Item, action: string, extra: Record<string, unknown> = {}) {
     setBusy(true); setMsg(null);
@@ -66,6 +67,7 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
   return (
     <div>
       <h1>Review queue</h1>
+      {held > 0 && <p className="msg warn">{held} drafts are on hold until their recipient matches a verified, unsuppressed contact. Their text and history are preserved.</p>}
       <p className="sub">Emails ChatGPT drafted. Nothing goes out until you approve the exact message and press Send in your own Gmail. Sent today: {sentCount} of {cap}. Keys: <span className="kbd">J</span>/<span className="kbd">K</span> move, <span className="kbd">A</span> approve, <span className="kbd">E</span> edit, <span className="kbd">S</span> skip.</p>
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={"btn" + (tab === k ? " pri" : "")} onClick={() => { setTab(k); setSel(0); }}>{l} ({items.filter((i) => tabOf(i.data.status) === k).length})</button>)}</div>
       {msg && <div className={"msg " + (msg.bad ? "bad" : "good")}>{msg.t}</div>}
@@ -114,8 +116,8 @@ export default function Queue({ initial, sent, cap }: { initial: Item[]; sent: n
                 {o.status !== "skipped" && <button className="btn" disabled={busy} onClick={() => act(it, "skip")}>Skip</button>}
               </>}
               {o.status === "approved" && <>
-                <button className="btn pri" disabled={busy} onClick={() => openInGmail(it)}>{o.openedInGmailAt ? "Open in Gmail again" : "Open in Gmail"}</button>
-                <button className="btn" disabled={busy} onClick={() => act(it, "sent")}>I sent it</button>
+                <button className="btn pri" disabled={busy || hardFail} onClick={() => openInGmail(it)}>{o.openedInGmailAt ? "Open in Gmail again" : "Open in Gmail"}</button>
+                <button className="btn" disabled={busy || hardFail} onClick={() => act(it, "sent")}>I sent it</button>
                 <button className="btn" disabled={busy} onClick={() => act(it, "unapprove")}>Remove approval</button>
                 <span className="small mut">Approved {String(o.approval?.at || "").slice(0, 16).replace("T", " ")} for {o.approval?.to}</span>
               </>}
