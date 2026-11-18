@@ -13,7 +13,12 @@ export function sameSiteRequest(req: Request): boolean {
   try {
     const value = new URL(origin).origin;
     if (value !== origin) return false;
-    return value === new URL(req.url).origin
+    const requestUrl = new URL(req.url);
+    // Next.js may use its bind hostname in req.url. Host is the actual HTTP
+    // authority chosen by the browser; unlike Origin it cannot be set by page JS.
+    const host = req.headers.get("host");
+    const requestOrigin = host ? `${requestUrl.protocol}//${host}` : requestUrl.origin;
+    return value === requestOrigin
       || (!!process.env.APP_URL && value === new URL(process.env.APP_URL).origin);
   } catch { return false; }
 }
