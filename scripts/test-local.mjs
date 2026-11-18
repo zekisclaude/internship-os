@@ -19,7 +19,7 @@ finally {server.kill("SIGTERM");await once(server,"exit");}
 if (exit) process.exit(exit);
 // Public access remains supported by the owner's explicit choice. These reads
 // use a fresh empty test database, never a live deployment.
-const publicEnv={...env,SITE_PASSWORD:""};
+const publicEnv={...env,SITE_PASSWORD:"",APP_URL:"https://canonical-alias.example"};
 const publicServer=spawn(process.execPath,["node_modules/next/dist/bin/next","start","--hostname","127.0.0.1","--port",String(port)],{cwd,env:publicEnv,stdio:"ignore"});
 try {
  let ready=false;for(let i=0;i<150;i++){try{await fetch(env.BASE+"/login");ready=true;break;}catch{}await new Promise(r=>setTimeout(r,200));}
@@ -28,6 +28,11 @@ try {
   const r=await fetch(env.BASE+path,{redirect:"manual"});
   if(r.status!==200)throw new Error(`Public mode ${path} returned ${r.status}`);
   console.log(`PASS public mode ${path}`);
+ }
+ for (const [origin,expected] of [[env.BASE,404],["https://foreign.example",401]]) {
+  const r=await fetch(env.BASE+"/api/outreach/nonexistent/compose",{method:"POST",headers:{"content-type":"application/json",origin},body:"{}"});
+  if(r.status!==expected)throw new Error(`Origin check returned ${r.status}, expected ${expected}`);
+  console.log(`PASS ${expected===404 ? "same-origin alias accepted despite APP_URL mismatch" : "foreign origin rejected"}`);
  }
  const denied=await fetch(env.BASE+"/api/agent/batch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:[]})});
  if(denied.status!==401)throw new Error("Anonymous agent write was not refused");

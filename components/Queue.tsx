@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { prepareGmail } from "@/lib/gmail-flow";
 
 type Check = { id: string; label: string; ok: boolean; hard: boolean };
 type Item = { id: string; version: number; hash: string; data: any; checks: Check[] };
@@ -16,6 +17,7 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
   const [draft, setDraft] = useState({ to: "", subject: "", body: "" });
   const [msg, setMsg] = useState<{ t: string; bad?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [gmailLink, setGmailLink] = useState<string | null>(null);
     const [sentCount, setSent] = useState(sent);
   const shown = useMemo(() => items.filter((i) => tabOf(i.data.status) === tab), [items, tab]);
 
@@ -34,22 +36,18 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       return true;
     } finally { setBusy(false); }
   }
-  // Opens Gmail with the approved message filled in. The tab is opened right away so the browser does not block it.
+  // Navigate the current tab: embedded browsers often block blank popups.
   async function openInGmail(it: Item) {
-    const tab = window.open("about:blank", "_blank");
-    if (it.data.status !== "approved") {
-      const ok = await act(it, "approve");
-      if (!ok) { tab?.close(); return; }
-    }
-    const fresh = await (await fetch("/api/queue", { cache: "no-store" })).json();
-    const now = (fresh.items as Item[]).find((x) => x.id === it.id);
-    if (!now) { tab?.close(); return; }
-    const r = await fetch(`/api/outreach/${encodeURIComponent(it.id)}/compose`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: now.hash }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.url) { tab?.close(); setMsg({ t: j.error || "Could not open Gmail", bad: true }); return; }
-    if (tab) tab.location.href = j.url; else window.location.href = j.url;
-    await reload();
-    setMsg({ t: `Opened in Gmail for ${now.data.to}. Press Send there, then click "I sent it" here.` });
+    if (busy) return;
+    setBusy(true); setMsg(null); setGmailLink(null);
+    try {
+      const url = await prepareGmail(it, fetch);
+      setGmailLink(url);
+      setMsg({ t: "Approved. Opening Gmail; press Send there when ready." });
+      window.location.assign(url);
+    } catch (error) {
+      setMsg({ t: error instanceof Error ? error.message : "Could not open Gmail. Please try again.", bad: true });
+    } finally { setBusy(false); }
   }
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -70,7 +68,8 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       {held > 0 && <p className="msg warn">{held} drafts are on hold until their recipient matches a verified, unsuppressed contact. Their text and history are preserved.</p>}
       <p className="sub">Emails ChatGPT drafted. Nothing goes out until you approve the exact message and press Send in your own Gmail. Sent today: {sentCount} of {cap}. Keys: <span className="kbd">J</span>/<span className="kbd">K</span> move, <span className="kbd">A</span> approve, <span className="kbd">E</span> edit, <span className="kbd">S</span> skip.</p>
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={"btn" + (tab === k ? " pri" : "")} onClick={() => { setTab(k); setSel(0); }}>{l} ({items.filter((i) => tabOf(i.data.status) === k).length})</button>)}</div>
-      {msg && <div className={"msg " + (msg.bad ? "bad" : "good")}>{msg.t}</div>}
+      {msg && <div role="status" className={"msg " + (msg.bad ? "bad" : "good")}>{msg.t}</div>}
+      {gmailLink && <p><a href={gmailLink} target="_blank" rel="noopener noreferrer">Open the approved message in Gmail</a></p>}
       {!shown.length && <div className="card mut">Nothing here.</div>}
       {shown.map((it, i) => {
         const o = it.data; const lab = LABEL[o.toStatus] || ["No address label", "bad"];

@@ -47,6 +47,7 @@ npm run typecheck
 npm run build
 npm run smoke      # with a local server running; see scripts/smoke.mjs
 npm run test:local # after build; isolated API smoke and public-mode checks
+npm run test:gmail-flow # approval, loading errors and exact-message Gmail preparation
 ```
 
 ## How sending works
@@ -59,3 +60,5 @@ npm run test:local # after build; isolated API smoke and public-mode checks
 ## Continuing the existing project
 
 Read [the coordination protocol](docs/COORDINATION.md) before importing records or changing runtime connections. `/outreach` and `/queue` use the same review queue. Active drafts whose address does not match their linked verified contact stay on hold without deleting their text or history. Research flags and duplicate initial contacts block approval and opening Gmail.
+
+The Gmail button opens the approved compose URL in the current tab, which works in browsers that block popups. A direct Gmail link remains available if navigation is blocked. Use Back to return to the queue after sending. Owner actions validate the actual request origin so deployment aliases work even when APP_URL names another alias.
