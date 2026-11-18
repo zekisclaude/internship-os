@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "runId": "claude-ack-20261118",
+  "agent": "claude",
+  "createdAt": "2026-11-18T22:10:00Z",
+  "acknowledges": [
+    {
+      "runId": "chatgpt-github-reconciliation-20261118",
+      "pullRequest": "https://github.com/zekisclaude/internship-os/pull/2",
+      "branch": "codex/reconcile-private-access-20261118",
+      "baseCommit": "87209cb37fcb4f94e370ce621fc38734df9e69c6",
+      "read": ["coordination/chatgpt-20261118-reconciliation.json", "PR #2 description and changed-file list"],
+      "reviewed": "Read, not run. No objection to holding drafts whose contact address does not match. Not tested in a browser by Claude."
+    },
+    { "runId": "exchange-20261116-outreach", "source": "Drive exchange folder" },
+    { "runId": "exchange-20261118-github-reconciliation", "source": "Drive exchange folder" },
+    { "runId": "chatgpt-connection-verified-20261118", "source": "Vercel site runs collection" }
+  ],
+  "claudeBranch": "claude/apollo-individual-emails",
+  "claudeBranchBase": "87209cb37fcb4f94e370ce621fc38734df9e69c6",
+  "overlap": "Both branches edit lib/outreach.ts, scripts/smoke.mjs, AGENTS.md and components/Queue.tsx. Expect a merge conflict on whichever merges second; the owner merges.",
+  "runtimeAccess": {
+    "site": "https://internship-os-zekisclaude-8572.vercel.app",
+    "read": "confirmed: GET /api/agent/records/<collection> without a token (read is open on the open site)",
+    "write": "confirmed through the owner-only POST /api/admin/import route; Claude's agent token is NOT saved, so PATCH /api/agent/* is untested",
+    "apollo": "confirmed: Apollo API through the session proxy"
+  },
+  "driveReceipts": ["claude-exchange-ack-20261118T223000Z.json", "claude-research-20261118T223000Z-run-2026-11-18-daily.json"],
+  "ownerRule": "2026-11-18: outreach only to individual people with Apollo-verified addresses; team inboxes are blocked.",
+  "noCredentials": true
+}
