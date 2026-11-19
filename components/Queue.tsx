@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import BulkGmailDrafts from "./BulkGmailDrafts";
-import { prepareGmail } from "@/lib/gmail-flow";
+import { openPreparedGmail, prepareGmail } from "@/lib/gmail-flow";
 
 type Check = { id: string; label: string; ok: boolean; hard: boolean };
 type Item = { id: string; version: number; hash: string; data: any; checks: Check[] };
@@ -37,15 +37,15 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       return true;
     } finally { setBusy(false); }
   }
-  // Navigate the current tab: embedded browsers often block blank popups.
+  // Keep Internship OS open, with a link fallback if the browser blocks new tabs.
   async function openInGmail(it: Item) {
     if (busy) return;
     setBusy(true); setMsg(null); setGmailLink(null);
     try {
-      const url = await prepareGmail(it, fetch);
-      setGmailLink(url);
-      setMsg({ t: "Approved. Opening Gmail; press Send there when ready." });
-      window.location.assign(url);
+      const result = await openPreparedGmail(() => prepareGmail(it, fetch), () => window.open("about:blank", "_blank"));
+      setGmailLink(result.url);
+      setMsg({ t: result.opened ? "Gmail opened in a new tab. Press Send there when ready." : "Your browser blocked the new tab. Use the link below to open Gmail." });
+      await reload();
     } catch (error) {
       setMsg({ t: error instanceof Error ? error.message : "Could not open Gmail. Please try again.", bad: true });
     } finally { setBusy(false); }

@@ -28,3 +28,19 @@ export async function prepareGmail(it: Message, request: typeof fetch): Promise<
   }
   return url.href;
 }
+
+// Reserve the tab during the click gesture, before async approval requests.
+// If popups are blocked or navigation fails, return the URL for a normal link.
+type GmailTab = { opener: unknown; closed: boolean; location: { replace: (url: string) => void }; close: () => void };
+export async function openPreparedGmail(prepare: () => Promise<string>, openTab: () => GmailTab | null) {
+  let tab: GmailTab | null = null;
+  try { tab = openTab(); if (tab) tab.opener = null; } catch { tab?.close(); tab = null; }
+  try {
+    const url = await prepare();
+    if (tab && !tab.closed) {
+      try { tab.location.replace(url); return { url, opened: true }; }
+      catch { tab.close(); }
+    }
+    return { url, opened: false };
+  } catch (error) { tab?.close(); throw error; }
+}

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 const source = await readFile(new URL('../lib/gmail-flow.ts', import.meta.url), 'utf8');
 const js = transpileModule(source, { compilerOptions: { target: ScriptTarget.ES2022, module: ModuleKind.ES2022 } }).outputText;
-const { prepareGmail } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
+const { prepareGmail, openPreparedGmail } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
 const item = { id: 'test', version: 1, hash: 'reviewed', data: { status: 'awaiting_approval' } };
 const approved = { ...item, data: { status: 'approved' } };
 const url = 'https://mail.google.com/mail/?view=cm&to=test%40example.com';
@@ -38,4 +38,21 @@ test('network failures propagate to visible UI handling',async()=>{
 });
 test('untrusted redirect URL is rejected',async()=>{
  const {request}=mock([{body:{items:[approved]}},{body:{url:'https://example.com/'}}]);await assert.rejects(prepareGmail(approved,request),/usable link/);
+});
+
+test('new tab is reserved before async preparation and opener is detached',async()=>{
+ const order=[];const tab={opener:{},closed:false,location:{replace:url=>order.push(url)},close:()=>order.push('close')};
+ const result=await openPreparedGmail(async()=>{order.push('prepare');return url;},()=>{order.push('open');return tab;});
+ assert.deepEqual(order,['open','prepare',url]);assert.equal(tab.opener,null);assert.equal(result.opened,true);
+});
+test('blocked popup returns a fallback link without replacing the application',async()=>{
+ assert.deepEqual(await openPreparedGmail(async()=>url,()=>null),{url,opened:false});
+});
+test('approval errors close the reserved tab and never navigate to Gmail',async()=>{
+ let closed=false;const tab={opener:null,closed:false,location:{replace:()=>assert.fail('must not navigate')},close:()=>{closed=true;}};
+ await assert.rejects(openPreparedGmail(async()=>{throw new Error('Changed message');},()=>tab),/Changed message/);assert.equal(closed,true);
+});
+test('user-closed tab returns a working fallback link',async()=>{
+ const tab={opener:null,closed:true,location:{replace:()=>assert.fail('must not navigate')},close:()=>{}};
+ assert.deepEqual(await openPreparedGmail(async()=>url,()=>tab),{url,opened:false});
 });
