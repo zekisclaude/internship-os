@@ -15,7 +15,7 @@ The server enforces this: each agent has its own API token and `lib/permissions.
 ## Hard rules (do not weaken in code or data)
 
 1. Nothing is sent without Zeki approving the exact recipient, subject and body. Approval is a hash of those; any edit clears it (`lib/records.ts`, `app/api/outreach/[id]/[action]/route.ts`).
-2. Email only, verified addresses only (owner rule, 2026-11-15). Every outreach record needs `to` and `toStatus`. Only `published` (the firm or person published it, with the source URL in `evidence`) or `apollo_verified` (Apollo reports the address as verified) can be approved. `general_inbox`, `pattern-inferred` and `apollo_unverified` are blocked: find a verified personal address or choose another person. Never scrape LinkedIn.
+2. Email only, individual people only, Apollo-verified addresses only (owner rule, 2026-11-18). Every outreach record needs `to` and `toStatus: apollo_verified`, set only when Apollo reports that person's address as verified. Team and role inboxes (info@, hello@, careers@ and similar), `published`, `general_inbox`, `pattern-inferred` and `apollo_unverified` are blocked; the code enforces this in `lib/outreach.ts`. Find the person in Apollo or choose someone else. Never scrape LinkedIn.
 3. Never contact anyone who opted out (`contacts.optOut`, `outreach.suppressed`).
 4. Never invent facts about Zeki. Facts come only from his current resume.
 5. Screening is activity-based and uses exactly: Low apparent conflict, Requires clarification, High direct-involvement concern, Insufficient information. It is never a religious ruling.
