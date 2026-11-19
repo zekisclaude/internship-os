@@ -25,10 +25,10 @@ The server enforces this: each agent has its own API token and `lib/permissions.
 
 ## Code changes
 
-- Work on a branch and open a pull request. Do not push to `main` directly.
+- Work on a branch, run the tests, then merge. The owner authorized Claude on 2026-11-19 to merge its own changes to `main` automatically once `npm run typecheck`, `npm run build` and `npm run smoke` pass; Claude does not need to wait for Zeki. Other agents open a pull request and Zeki (or Claude after checking the same tests) merges.
 - Keep `npm run typecheck` and `npm run build` passing. Run `npm run smoke` for the API and approval checks.
-- Say in the PR which agent wrote it. Claude and ChatGPT review each other's PRs when asked; Zeki merges.
-- Do not change `lib/permissions.ts`, the approval or send route, or the hard rules without Zeki's explicit OK in the PR.
+- Say in the PR which agent wrote it. Claude and ChatGPT review each other's PRs when asked.
+- Auto-merge never covers changes to `lib/permissions.ts`, the approval or send route, `lib/outreach.ts` checks or the hard rules unless Zeki asked for that specific change in chat; say what changed in the commit message.
 
 ## Data conventions
 

@@ -42,9 +42,9 @@ r = await call("PATCH", "/api/agent/records/contacts/c1", { token: C, body: { pa
 ok("claude cannot write contacts", r.s === 403);
 
 r = await call("POST", "/api/agent/batch", { token: G, body: { items: [
-  { collection: "contacts", id: "c1", patch: { name: "Pat Lee", company: "Acme", companyId: "acme", email: "pat@acme.com", emailStatus: "published" } },
-  { collection: "outreach", id: "o1", patch: { contactId: "c1", companyId: "acme", company: "Acme", toName: "Pat Lee", to: "pat@acme.com", toStatus: "published", tier: "A", subject: "Wharton first-year, question on Acme", body: "Hi Pat,\n\nTest body.\n\nThanks,\nZeki", status: "awaiting_approval", evidence: [{ claim: "team page", url: "https://acme.com/team" }] } },
-  { collection: "outreach", id: "o2", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "published", subject: "s", body: "b", status: "approved" } } ] } });
+  { collection: "contacts", id: "c1", patch: { name: "Pat Lee", company: "Acme", companyId: "acme", email: "pat@acme.com", emailStatus: "apollo_verified" } },
+  { collection: "outreach", id: "o1", patch: { contactId: "c1", companyId: "acme", company: "Acme", toName: "Pat Lee", to: "pat@acme.com", toStatus: "apollo_verified", tier: "A", subject: "Wharton first-year, question on Acme", body: "Hi Pat,\n\nTest body.\n\nThanks,\nZeki", status: "awaiting_approval", evidence: [{ claim: "team page", url: "https://acme.com/team" }] } },
+  { collection: "outreach", id: "o2", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "apollo_verified", subject: "s", body: "b", status: "approved" } } ] } });
 ok("chatgpt creates contact and draft", r.j?.results?.[0]?.ok && r.j?.results?.[1]?.ok, JSON.stringify(r.j));
 ok("chatgpt cannot set approved", r.j?.results?.[2]?.ok === false);
 r = await call("PATCH", "/api/agent/records/outreach/o1", { token: G, body: { patch: { approval: { hash: "x" } }, ifVersion: 1 } });
@@ -93,17 +93,17 @@ r = await call("PATCH", "/api/agent/records/outreach/o4", { token: G, body: { pa
 ok("chatgpt cannot mark an unsent message replied", r.s === 403 || r.s === 409);
 
 // A verified label on a draft cannot override a different linked contact.
-await call("PATCH", "/api/agent/records/outreach/mismatch", { token: G, body: { patch: { contactId: "c1", to: "other@acme.com", toStatus: "published", subject: "Mismatch", body: "Test", status: "awaiting_approval" } } });
+await call("PATCH", "/api/agent/records/outreach/mismatch", { token: G, body: { patch: { contactId: "c1", to: "other@acme.com", toStatus: "apollo_verified", subject: "Mismatch", body: "Test", status: "awaiting_approval" } } });
 q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("mismatch");
 ok("mismatched contact is held", !q.j.items.some((x) => x.id === "mismatch"));
 ok("direct approval cannot bypass held route", (await call("POST", "/api/outreach/mismatch/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 
-await call("PATCH", "/api/agent/records/outreach/duplicate", { token: G, body: { patch: { contactId: "c1", companyId: "acme", to: "pat@acme.com", toStatus: "published", subject: "Another initial", body: "Test", status: "awaiting_approval" } } });
+await call("PATCH", "/api/agent/records/outreach/duplicate", { token: G, body: { patch: { contactId: "c1", companyId: "acme", to: "pat@acme.com", toStatus: "apollo_verified", subject: "Another initial", body: "Test", status: "awaiting_approval" } } });
 it = await rawItem("duplicate");
 ok("prior replied initial blocks duplicate firm outreach", (await call("POST", "/api/outreach/duplicate/approve", { owner: true, body: { hash: it.hash } })).s === 422);
 
 await call("PATCH", "/api/agent/records/contacts/c1", { token: G, body: { patch: { optOut: true }, ifVersion: 3 } });
-await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o3", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "published", subject: "Follow up on Acme", body: "Hi Pat,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
+await call("POST", "/api/agent/batch", { token: G, body: { items: [{ collection: "outreach", id: "o3", patch: { contactId: "c1", to: "pat@acme.com", toStatus: "apollo_verified", subject: "Follow up on Acme", body: "Hi Pat,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
 q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("o3");
 ok("opted-out draft is held, not deleted", !q.j.items.some((x) => x.id === "o3") && q.j.heldCount >= 1 && it.data.subject === "Follow up on Acme");
 ok("opt-out blocks approval", (await call("POST", "/api/outreach/o3/approve", { owner: true, body: { hash: it.hash } })).s === 422);
@@ -119,7 +119,7 @@ ok("openapi is served", (await call("GET", "/api/openapi")).j?.openapi === "3.1.
 r = await call("POST", "/api/admin/import", { token: C, body: { records: [] } });
 ok("agents cannot use import", r.s === 401);
 r = await call("POST", "/api/admin/import", { owner: true, body: { source: "test", records: [
-  { collection: "outreach", id: "old1", data: { to: "a@b.com", toStatus: "published", subject: "Old", body: "Hi", status: "approved", approval: { hash: "h", to: "a@b.com" } } },
+  { collection: "outreach", id: "old1", data: { to: "a@b.com", toStatus: "apollo_verified", subject: "Old", body: "Hi", status: "approved", approval: { hash: "h", to: "a@b.com" } } },
   { collection: "opportunities", id: "smoke-opp", data: { employer: "SHOULD NOT OVERWRITE", reqId: "R1" } } ] } });
 ok("owner import works", r.s === 200 && r.j?.created === 1 && r.j?.merged === 1, JSON.stringify(r.j));
 q = await call("GET", "/api/queue", { owner: true }); it = await rawItem("old1");
@@ -144,5 +144,13 @@ ok("agents cannot resolve flags", (await call("POST", "/api/outreach/o8/resolvef
 r = await call("POST", "/api/outreach/o8/resolveflags", { owner: true, body: { note: "citizenship confirmed", ifVersion: it.version } });
 q = await call("GET", "/api/queue", { owner: true }); it = q.j.items.find((x) => x.id === "o8");
 ok("owner resolves the flag with a note", r.s === 200 && it.checks.find((c) => c.id === "flags").ok && it.data.reviewFlags[0].resolvedBy && it.data.history.some((h) => h.event === "flags_resolved"), JSON.stringify(r.j));
+await call("POST", "/api/agent/batch", { token: G, body: { items: [
+  { collection: "contacts", id: "c3", patch: { name: "Team Gamma", company: "Gamma", companyId: "gamma", email: "info@gamma.com", emailStatus: "apollo_verified" } },
+  { collection: "outreach", id: "o9", patch: { contactId: "c3", companyId: "gamma", company: "Gamma", to: "info@gamma.com", toStatus: "apollo_verified", subject: "Wharton first-year, question on Gamma", body: "Hi,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } },
+  { collection: "contacts", id: "c4", patch: { name: "Pub Lisher", company: "Delta", companyId: "delta", email: "pub@delta.com", emailStatus: "published" } },
+  { collection: "outreach", id: "o10", patch: { contactId: "c4", companyId: "delta", company: "Delta", to: "pub@delta.com", toStatus: "published", subject: "Wharton first-year, question on Delta", body: "Hi,\n\nx\n\nThanks,\nZeki", status: "awaiting_approval" } }] } });
+q = await call("GET", "/api/queue", { owner: true });
+ok("team inbox draft is held even if labeled verified", !q.j.items.some((x) => x.id === "o9"));
+ok("published-only address draft is held", !q.j.items.some((x) => x.id === "o10"));
 console.log(`\n${pass} passed, ${failN} failed`);
 process.exit(failN ? 1 : 0);
