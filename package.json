@@ -10,7 +10,8 @@
     "smoke": "node scripts/smoke.mjs",
     "test:local": "node scripts/test-local.mjs",
     "test:gmail-flow": "node --test scripts/gmail-flow.test.mjs",
-    "test:gmail-drafts": "node --test scripts/gmail-drafts.test.mjs scripts/gmail-auth.test.mjs"
+    "test:gmail-drafts": "node --test scripts/gmail-drafts.test.mjs scripts/gmail-auth.test.mjs",
+    "test:gmail-send": "node --test scripts/gmail-send.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "0.10.4",

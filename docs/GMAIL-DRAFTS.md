@@ -33,3 +33,14 @@ Google's `gmail.compose` scope includes sending capability at the provider level
 Run `npm run typecheck`, `npm run build`, `npm run test:local`, `npm run test:gmail-flow`, and `npm run test:gmail-drafts` without production credentials. The local tests use a fresh in-memory database and mocked Gmail responses; they do not contact a mailbox or send email.
 
 The new table is added by the existing idempotent schema initializer, without changing existing records or creating a second database. A deployed preview or passing mocked test does not prove Google consent, Gmail creation, duplicate handling against the actual mailbox, or revocation works end to end. Those remain blocked until the Google configuration and owner consent are completed.
+
+## Sending (added 2026-11-19 at the owner's request)
+
+With Gmail connected, the review queue and the **Send** page can send approved messages. This uses the same connection and the existing `gmail.compose` scope; no new permission is needed.
+
+- **Send now** (approved cards), **Approve and send** (unapproved cards) and **Send** (Send page) each ask for confirmation, then call `POST /api/send` for that one message.
+- **Approve all** and **Send all** show the exact list first and need a tick box before they run. Approve all approves each listed message's current version. Send all sends them one at a time with a short pause and stops on any error, limit or unclear result.
+- `/api/send` re-checks everything on the server: the owner's Gmail browser session, the approval hash and recipient, the verified-recipient, opt-out, research-flag and duplicate rules, and the daily cap (`DAILY_SEND_CAP`). It searches Gmail (excluding drafts) for earlier mail with the recipient and skips if any exists.
+- Each attempt is claimed in `gmail_send_exports` before Gmail is called, with one initial email allowed per recipient. If Gmail's answer cannot be confirmed the row is marked uncertain and is never retried automatically; check Gmail Sent. A saved Gmail draft of the same message is deleted after a successful send so it cannot be sent twice.
+- On success the outreach record becomes `sent` with the Gmail message and thread IDs and a follow-up date five business days out.
+- Tested with mocked Gmail only (`npm run test:gmail-send`). A real send has not been verified end to end until the owner connects Gmail and sends one message.

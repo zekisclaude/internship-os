@@ -43,6 +43,9 @@ try {
  const gmailConnect=await fetch(env.BASE+"/api/gmail/connect",{method:"POST",headers:{origin:env.BASE}});
  if(gmailConnect.status!==503)throw new Error("Gmail connect must report missing OAuth setup");
  console.log("PASS missing OAuth setup gives an actionable failure");
+ const sendDenied=await fetch(env.BASE+"/api/send",{method:"POST",headers:{origin:env.BASE,"content-type":"application/json"},body:JSON.stringify({id:"t",hash:"t"})});
+ if(sendDenied.status!==401)throw new Error("Public visitor must not send email");
+ console.log("PASS public access alone cannot send email");
  const denied=await fetch(env.BASE+"/api/agent/batch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:[]})});
  if(denied.status!==401)throw new Error("Anonymous agent write was not refused");
  console.log("PASS public mode still requires agent credentials for agent writes");

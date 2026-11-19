@@ -9,6 +9,19 @@ create table if not exists gmail_draft_exports (
   primary key (outreach_id, message_hash)
 );
 
+create table if not exists gmail_send_exports (
+  outreach_id text not null,
+  message_hash text not null,
+  recipient text not null,
+  kind text not null default 'initial',
+  state text not null,
+  gmail_message_id text,
+  gmail_thread_id text,
+  created_at timestamptz not null default now(),
+  primary key (outreach_id, message_hash)
+);
+create unique index if not exists gmail_send_one_initial on gmail_send_exports (recipient) where kind = 'initial';
+
 create table if not exists records (
   collection text not null,
   id text not null,

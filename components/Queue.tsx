@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import BulkGmailDrafts from "./BulkGmailDrafts";
+import SendCenter from "./SendCenter";
+import { approveOne, sendOne } from "@/lib/send-client";
 import { openPreparedGmail, prepareGmail } from "@/lib/gmail-flow";
 
 type Check = { id: string; label: string; ok: boolean; hard: boolean };
@@ -37,6 +39,30 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       return true;
     } finally { setBusy(false); }
   }
+  async function sendNow(it: Item) {
+    if (busy) return;
+    if (!window.confirm(`Send this email to ${it.data.to} now? It goes from your Gmail and cannot be undone.`)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await sendOne(it);
+      setMsg(res.status === "sent" || res.status === "already_sent" ? { t: `Sent to ${it.data.to}.` } : { t: res.reason || "Not sent.", bad: true });
+      await reload();
+    } finally { setBusy(false); }
+  }
+  async function approveAndSend(it: Item) {
+    if (busy) return;
+    if (!window.confirm(`Approve this exact message and send it to ${it.data.to} now? It goes from your Gmail and cannot be undone.`)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const a = await approveOne(it);
+      if (a.status !== "approved") { setMsg({ t: a.reason || "Could not approve.", bad: true }); return; }
+      const fresh = await (await fetch("/api/queue", { cache: "no-store" })).json();
+      const now = (fresh.items as Item[]).find(x => x.id === it.id);
+      if (!now) { setMsg({ t: "The message is no longer available.", bad: true }); return; }
+      const res = await sendOne(now);
+      setMsg(res.status === "sent" ? { t: `Approved and sent to ${it.data.to}.` } : { t: res.reason || "Approved, but not sent.", bad: true });
+    } finally { await reload(); setBusy(false); }
+  }
   // Keep Internship OS open, with a link fallback if the browser blocks new tabs.
   async function openInGmail(it: Item) {
     if (busy) return;
@@ -68,6 +94,7 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
       <h1>Review queue</h1>
       {held > 0 && <p className="msg warn">{held} drafts are on hold until their recipient matches a verified, unsuppressed contact. Their text and history are preserved.</p>}
       <p className="sub">Emails ChatGPT drafted. Nothing goes out until you approve the exact message and press Send in your own Gmail. Sent today: {sentCount} of {cap}. Keys: <span className="kbd">J</span>/<span className="kbd">K</span> move, <span className="kbd">A</span> approve, <span className="kbd">E</span> edit, <span className="kbd">S</span> skip.</p>
+      <SendCenter items={items} reload={reload} cap={cap} sentToday={sentCount} />
       <BulkGmailDrafts items={items} onComplete={reload} />
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={"btn" + (tab === k ? " pri" : "")} onClick={() => { setTab(k); setSel(0); }}>{l} ({items.filter((i) => tabOf(i.data.status) === k).length})</button>)}</div>
       {msg && <div role="status" className={"msg " + (msg.bad ? "bad" : "good")}>{msg.t}</div>}
@@ -112,12 +139,14 @@ export default function Queue({ initial, heldCount, sent, cap }: { initial: Item
             <div className="row" style={{ marginTop: 10 }}>
               {["awaiting_approval", "draft", "skipped"].includes(o.status) && <>
                 <button className="btn pri" disabled={busy || hardFail || edit === it.id} onClick={() => openInGmail(it)}>Approve and open in Gmail</button>
+                <button className="btn" disabled={busy || hardFail || edit === it.id} onClick={() => approveAndSend(it)}>Approve and send</button>
                 <button className="btn" disabled={busy || hardFail || edit === it.id} onClick={() => act(it, "approve")}>Approve only</button>
                 <button className="btn" disabled={busy} onClick={() => { setEdit(it.id); setDraft({ to: o.to || "", subject: o.subject || "", body: o.body || "" }); }}>Edit</button>
                 {o.status !== "skipped" && <button className="btn" disabled={busy} onClick={() => act(it, "skip")}>Skip</button>}
               </>}
               {o.status === "approved" && <>
-                <button className="btn pri" disabled={busy || hardFail} onClick={() => openInGmail(it)}>{o.openedInGmailAt ? "Open in Gmail again" : "Open in Gmail"}</button>
+                <button className="btn pri" disabled={busy || hardFail} onClick={() => sendNow(it)}>Send now</button>
+                <button className="btn" disabled={busy || hardFail} onClick={() => openInGmail(it)}>{o.openedInGmailAt ? "Open in Gmail again" : "Open in Gmail"}</button>
                 <button className="btn" disabled={busy || hardFail} onClick={() => act(it, "sent")}>I sent it</button>
                 <button className="btn" disabled={busy} onClick={() => act(it, "unapprove")}>Remove approval</button>
                 <span className="small mut">Approved {String(o.approval?.at || "").slice(0, 16).replace("T", " ")} for {o.approval?.to}</span>
