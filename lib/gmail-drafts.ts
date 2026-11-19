@@ -11,9 +11,9 @@ export function rawDraft(message: DraftMessage, sender: string) {
     "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", body,
   ].join("\r\n")).toString("base64url");
 }
-export async function gmailApi(token: string, path: string, body?: unknown, request = fetch) {
+export async function gmailApi(token: string, path: string, body?: unknown, request = fetch, method?: "PUT") {
   const response = await request(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
-    method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    method: method || (body === undefined ? "GET" : "POST"), headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(20000), redirect: "error",
   });
   if (!response.ok) throw new Error("Gmail request failed. Reconnect Gmail if access expired.");

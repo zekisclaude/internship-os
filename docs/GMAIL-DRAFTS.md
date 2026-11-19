@@ -44,3 +44,7 @@ With Gmail connected, the review queue and the **Send** page can send approved m
 - Each attempt is claimed in `gmail_send_exports` before Gmail is called, with one initial email allowed per recipient. If Gmail's answer cannot be confirmed the row is marked uncertain and is never retried automatically; check Gmail Sent. A saved Gmail draft of the same message is deleted after a successful send so it cannot be sent twice.
 - On success the outreach record becomes `sent` with the Gmail message and thread IDs and a follow-up date five business days out.
 - Tested with mocked Gmail only (`npm run test:gmail-send`). A real send has not been verified end to end until the owner connects Gmail and sends one message.
+
+## Editing after a draft was saved
+
+If a message's text changes after "Add to Gmail drafts", adding it again replaces the saved Gmail draft in place (same draft, new text) instead of skipping or creating a second draft. Our own draft is ignored by the earlier-correspondence check; any other mail with that person still blocks. If the draft was deleted in Gmail, a new one is created. Hand edits made inside the Gmail draft are overwritten. Approval is unchanged by this step.

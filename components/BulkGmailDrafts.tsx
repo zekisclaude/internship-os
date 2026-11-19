@@ -65,7 +65,7 @@ export default function BulkGmailDrafts({ items, onComplete }: { items: Choice[]
     </div>
     {connection && !connection.configured && <p className="small">The site’s Gmail connection needs setup before you can connect. <a href="/settings">View settings</a>.</p>}
     {busy && <p role="status">Working… {results.length} messages checked.</p>}
-    {!!results.length && <div role="status"><p>{count("created")} added, {count("already_added")} already added, {count("skipped")} skipped, {count("uncertain")} need checking, {count("failed")} failed.</p>
+    {!!results.length && <div role="status"><p>{count("created")} added, {count("updated")} updated, {count("already_added")} already added, {count("skipped")} skipped, {count("uncertain")} need checking, {count("failed")} failed.</p>
       <ul>{results.filter(r => r.reason).map(r => <li key={r.id}>{r.id}: {r.reason}</li>)}</ul>
     </div>}
     {error && <p role="alert" className="msg bad">{error}</p>}

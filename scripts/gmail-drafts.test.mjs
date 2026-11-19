@@ -44,3 +44,18 @@ test('database claims prevent simultaneous or changed-version duplicate exports'
  // An uncertain external response leaves the claim in place; retry cannot create.
  await db.query("update gmail_draft_exports set state='uncertain'");assert.equal((await claim('one','h','test@example.com')).rows.length,0);await db.close();
 });
+
+test('an edited message moves its journal row to the new version and keeps the Gmail draft id',async()=>{
+ const {SCHEMA}=await moduleFile('../lib/schema.ts');const db=new PGlite();await db.exec(SCHEMA);
+ await db.query("insert into gmail_draft_exports (outreach_id,message_hash,recipient,state,gmail_draft_id) values ('one','old','test@example.com','created','draft-1')");
+ const moved=await db.query("update gmail_draft_exports set message_hash=$3, recipient=$4, state='updating' where outreach_id=$1 and message_hash=$2 and state='created' returning outreach_id",['one','old','new','test@example.com']);
+ assert.equal(moved.rows.length,1);
+ const again=await db.query("update gmail_draft_exports set message_hash=$3, recipient=$4, state='updating' where outreach_id=$1 and message_hash=$2 and state='created' returning outreach_id",['one','old','new2','test@example.com']);
+ assert.equal(again.rows.length,0);
+ await db.query("update gmail_draft_exports set state='created' where outreach_id='one' and message_hash='new'");
+ const row=(await db.query('select * from gmail_draft_exports')).rows;assert.equal(row.length,1);assert.equal(row[0].gmail_draft_id,'draft-1');assert.equal(row[0].message_hash,'new');await db.close();
+});
+test('gmailApi can issue a PUT to replace a draft in place',async()=>{
+ let seen;await gmailApi('private','drafts/d1',{message:{raw:'x'}},async(url,opts)=>{seen={url,opts};return new Response('{"id":"d1"}');},'PUT');
+ assert.equal(seen.opts.method,'PUT');assert.match(seen.url,/drafts\/d1$/);
+});
