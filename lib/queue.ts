@@ -15,7 +15,9 @@ export async function queueState() {
   const byId = new Map(contacts.map((c) => [c.id, c.data]));
   const held = out.filter((r) => isActiveDraft(r.data) && !hasVerifiedRecipientRoute(r.data, byId.get(r.data.contactId)));
   const heldIds = new Set(held.map((r) => r.id));
-  const items = out.filter((r) => !heldIds.has(r.id)).map((r) => {
+  // Newest first: most recently added or changed message at the top.
+  const stamp = (r: { updated_at: string }) => new Date(r.updated_at).getTime() || 0;
+  const items = out.filter((r) => !heldIds.has(r.id)).sort((a, b) => stamp(b) - stamp(a) || a.id.localeCompare(b.id)).map((r) => {
     const o = r.data;
     const contact = byId.get(o.contactId);
     return { id: r.id, version: r.version, data: o, hash: messageHash(r.id, o),
