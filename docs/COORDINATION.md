@@ -28,8 +28,12 @@ The current Vercel importer fills blank fields and does not provide full cross-s
 
 Use separate server-side credentials with role restrictions. Never paste credentials in chat or commit them. Verify an agent connection with whoami, readback and a harmless scoped write; a health flag saying a token exists is insufficient. Verify Claude's reciprocal acknowledgment and existing scheduler configuration before claiming autonomous exchange.
 
-The current app opens an approved message in Gmail. It does not use Gmail OAuth, send through Gmail's API, or reconcile a sent message automatically. The manual 'I sent it' action is not independent Gmail evidence. Direct sending remains blocked until exact recipients/content/attachments/version, suppression, duplicate prevention, uncertain-result reconciliation and revocation are enforced end to end.
+The app can open an approved message in Gmail, save drafts through the owner's Gmail OAuth connection, and (since 2026-11-19, owner request) send one approved message through `POST /api/send` from the owner's verified browser session. Agents cannot call these routes. Sends are journaled in `gmail_send_exports`, refuse changed, unapproved, held, flagged, duplicate or already-contacted recipients, and never retry an unclear result. Editing an approved message and adding it to drafts again updates the existing saved draft in place. The manual 'I sent it' action is not independent Gmail evidence; reconcile against the Sent folder.
 
 ## Validation
 
 Run `npm run typecheck`, `npm run build`, then `npm run test:local`. Local tests use fresh in-memory data and disposable credentials. Production databases must never be used for smoke tests. Browser QA, production deployment, Postgres persistence and migration validation are separate checks; report their actual status.
+
+## Email sources and tags (2026-11-20)
+
+Recipient statuses accepted by the code: `apollo_verified` and `getprospect_valid`. Record a finder's own status exactly; never call a guess verified. LinkedIn may identify people and confirm employers; addresses come from Apollo or GetProspect. A company or candidate with a publicly stated Ethiopian or Eritrean background carries `tags: ["habesha"]` and a `tagBasis` citing the public source; never infer it from a name or photo. The importer fills blank fields only, so changing an existing candidate list needs the agent API or an owner edit. Claude's scheduled runs may use the reviewed `linkedin-search` job-listing CLI at low volume (AGENTS.md rule 2).

@@ -16,7 +16,7 @@ Agents use a token-protected API (`/api/openapi`). Neither agent can approve or 
 3. In **Settings > Deployment Protection**, leave Vercel Authentication on for preview deployments. Production uses the optional site password described below; public access is the owner's current choice.
 
 ### 2. Sending
-No Gmail password or Google setup. An approved email opens in your own Gmail already filled in, you press Send, then click "I sent it" on the site. Set `SENDER_GMAIL` if you use several Google accounts in the browser.
+Two ways. (a) Without Google setup: an approved email opens in your own Gmail already filled in, you press Send, then click "I sent it". (b) With the optional Gmail connection (see `docs/GMAIL-DRAFTS.md`): **Add all to Gmail drafts**, **Approve all**, **Send all** and per-message **Send** buttons. Send sends only the exact approved text, skips anyone with earlier mail, honors the daily cap and journals every attempt. Only the owner's connected browser session can use these; agents cannot send. Set `SENDER_GMAIL` to your sending address.
 
 ### 3. Environment variables (Vercel > Settings > Environment Variables, Production)
 See `.env.example` for the full list. Generate each secret with `openssl rand -hex 32` (or any password generator, 64 characters).
@@ -62,6 +62,10 @@ npm run test:gmail-flow # approval, loading errors and exact-message Gmail prepa
 Read [the coordination protocol](docs/COORDINATION.md) before importing records or changing runtime connections. `/outreach` and `/queue` use the same review queue. Active drafts whose address does not match their linked verified contact stay on hold without deleting their text or history. Research flags and duplicate initial contacts block approval and opening Gmail.
 
 The Gmail button opens the approved compose URL in a new tab and keeps Internship OS open. A direct Gmail link remains available if the browser blocks the new tab. Owner actions validate the actual request origin so deployment aliases work even when APP_URL names another alias.
+
+## Recipient rules
+
+Email only, individual people only. A recipient's status must be `apollo_verified` (Apollo reports the address verified) or `getprospect_valid` (GetProspect reports it valid), on both the draft and its contact. Team inboxes, guesses and any other status are blocked in `lib/outreach.ts`. People may be identified from LinkedIn profiles, but addresses must come from Apollo or GetProspect, never copied from LinkedIn, and nobody is messaged on LinkedIn.
 
 ## Save all to Gmail drafts
 
