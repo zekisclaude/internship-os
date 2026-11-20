@@ -2,8 +2,9 @@ import { sha256Hex } from "./crypto";
 
 export type Outreach = Record<string, any>;
 const EMAIL = /^[^\s@<>(),;:"]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-// Owner rule (2026-11-18): individual people only, with an address Apollo reports as verified.
-const VERIFIED = new Set(["apollo_verified"]);
+// Owner rule (2026-11-18, widened 2026-11-20 in chat): individual people only, with an address Apollo
+// reports as verified or GetProspect reports as valid. Anything else stays blocked.
+const VERIFIED = new Set(["apollo_verified", "getprospect_valid"]);
 const GENERIC = /^(info|hello|hi|contact|contactus|team|careers|career|recruiting|recruitment|jobs|admin|office|support|press|media|general|internship|internships|mail|enquiries|inquiries|ir|sales|help|hr)$/i;
 export const isTeamInbox = (to: string) => GENERIC.test(String(to || "").split("@")[0]);
 
@@ -36,7 +37,7 @@ export function checks(o: Outreach, ctx: { contact?: Outreach | null; optOut?: b
     { id: "email", label: "Valid email address", ok: EMAIL.test(o.to || ""), hard: true },
     { id: "optout", label: "Recipient has not opted out", ok: !o.suppressed && !ctx.optOut, hard: true },
     { id: "route", label: "Recipient matches a verified, unsuppressed contact", ok: hasVerifiedRecipientRoute(o, ctx.contact), hard: true },
-    { id: "label", label: status === "apollo_verified" ? "Verified by Apollo" : status === "apollo_unverified" ? "Apollo could not verify this address" : status === "general_inbox" ? "Team inbox, not an individual" : status === "pattern-inferred" ? "Address is a guess, not verified" : "Not verified by Apollo", ok: status === "apollo_verified", hard: true },
+    { id: "label", label: status === "apollo_verified" ? "Verified by Apollo" : status === "getprospect_valid" ? "Valid per GetProspect (not Apollo-verified)" : status === "apollo_unverified" ? "Apollo could not verify this address" : status === "general_inbox" ? "Team inbox, not an individual" : status === "pattern-inferred" ? "Address is a guess, not verified" : "Not verified by Apollo or GetProspect", ok: VERIFIED.has(status), hard: true },
     { id: "person", label: "Individual's address, not a team inbox", ok: !isTeamInbox(o.to || ""), hard: true },
     { id: "dash", label: "No em dashes", ok: !/[—]/.test(`${o.subject} ${o.body}`), hard: false },
     { id: "words", label: `Body length ${w} words (90 to 150)`, ok: w >= 90 && w <= 150, hard: false },
