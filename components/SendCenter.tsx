@@ -14,8 +14,7 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
   useEffect(() => { fetch("/api/gmail/status", { cache: "no-store" }).then(r => r.json()).then(setGmail).catch(() => setError("Could not check the Gmail connection.")); }, []);
   const toApprove = items.filter(canApprove);
   const approved = items.filter(canSend);
-  const remaining = Math.max(0, cap - sentToday);
-  const toSend = approved.slice(0, remaining);
+  const toSend = cap > 0 ? approved.slice(0, Math.max(0, cap - sentToday)) : approved;
   const connected = !!gmail?.connected;
   const label = (id: string) => { const o = items.find(i => i.id === id)?.data; return o ? `${o.toName || id} (${o.to})` : id; };
 
@@ -47,7 +46,7 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
   const count = (s: string) => results.filter(r => r.status === s).length;
   return <section className="card" aria-label="Approve and send">
     <b>Approve and send</b>
-    <p className="small">Approve all and Send all act on the exact messages listed in the confirmation. Each send goes to the recipient shown, with the text you approved, one at a time. Sent today: {sentToday} of {cap}.</p>
+    <p className="small">Approve all and Send all act on the exact messages listed in the confirmation. Each send goes to the recipient shown, with the text you approved, one at a time. Sent today: {sentToday}.</p>
     <div className="row">
       <button className="btn" disabled={busy || !toApprove.length} onClick={() => { setPanel(panel === "approve" ? null : "approve"); setAck(false); }}>Approve all ({toApprove.length})</button>
       <button className="btn pri" disabled={busy || !connected || !toSend.length} onClick={() => { setPanel(panel === "send" ? null : "send"); setAck(false); }}>Send all ({toSend.length}{approved.length > toSend.length ? ` of ${approved.length}` : ""})</button>

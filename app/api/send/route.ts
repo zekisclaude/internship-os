@@ -4,7 +4,7 @@ import { fail, json, ownerOnly } from "@/lib/http";
 import { gmailConnection, gmailToken } from "@/lib/gmail-auth";
 import { approvedMessage, deleteDraft, priorMail, sendRawMessage } from "@/lib/gmail-send";
 import { addBusinessDays } from "@/lib/outreach";
-import { queueItems, sentToday } from "@/lib/queue";
+import { queueItems } from "@/lib/queue";
 import { query } from "@/lib/db";
 import { audit, write } from "@/lib/records";
 
@@ -20,8 +20,6 @@ export async function POST(req: Request) {
   if (hard.length) return fail(422, `Resolve these first: ${hard.map(c => c.label).join("; ")}`);
   let message;
   try { message = approvedMessage(item, input.hash); } catch (error) { return fail(409, (error as Error).message); }
-  const cap = Number(process.env.DAILY_SEND_CAP || 15);
-  if ((await sentToday()) >= cap) return fail(429, `Daily limit of ${cap} reached. Remaining messages stay approved for tomorrow.`);
   const done = await query("select state from gmail_send_exports where outreach_id=$1 and message_hash=$2", [message.id, message.hash]);
   if (done[0]?.state === "sent") return json({ status: "already_sent" });
   if (done[0]) return json({ status: "uncertain", reason: "An earlier attempt may have sent this. Check Gmail Sent before doing anything else; it will not be retried automatically." });

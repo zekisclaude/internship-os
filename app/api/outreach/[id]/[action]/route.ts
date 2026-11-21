@@ -4,7 +4,7 @@ import { fail, json, ownerOnly } from "@/lib/http";
 import { get, list, write, audit } from "@/lib/records";
 import { addBusinessDays, checks, messageHash } from "@/lib/outreach";
 import { gmailComposeUrl } from "@/lib/compose";
-import { hasOtherInitial, sentToday } from "@/lib/queue";
+import { hasOtherInitial } from "@/lib/queue";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; action: string }> }) {
   const u = await ownerOnly(req);
@@ -60,8 +60,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     if (hard.length) return fail(422, "blocked", { failed: hard.map((c) => c.label) });
     const now = new Date();
     if (action === "compose") {
-      const cap = Number(process.env.DAILY_SEND_CAP || 15);
-      if ((await sentToday()) >= cap) return fail(429, `daily limit of ${cap} reached`);
       const history = [...(o.history || []), { at: now.toISOString(), event: "opened_in_gmail", by: u.email, version: o.version || 1 }];
       await write(actor, { collection: "outreach", id, ifVersion: rec.version, patch: { openedInGmailAt: now.toISOString(), history } }, { serverFields: true });
       await audit(actor, "open_in_gmail", `outreach/${id}`, `to ${o.to}`);

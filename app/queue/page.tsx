@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 export default async function Page() {
   await requireUser();
   const { items, heldCount } = await queueState();
-  const cap = Number(process.env.DAILY_SEND_CAP || 15);
+  const cap = 0; // 0 means no daily send limit (owner request 2026-11-21)
   return <Queue initial={JSON.parse(JSON.stringify(items))} heldCount={heldCount} sent={await sentToday()} cap={cap} />;
 }

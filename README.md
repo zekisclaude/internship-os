@@ -28,7 +28,6 @@ See `.env.example` for the full list. Generate each secret with `openssl rand -h
 | `SENDER_GMAIL` | optional: the Gmail address to open the compose window in |
 | `SESSION_SECRET`, `ENCRYPTION_KEY` | two different random values |
 | `CLAUDE_AGENT_TOKEN`, `CHATGPT_AGENT_TOKEN` | two different random values |
-| `DAILY_SEND_CAP` | `15` |
 
 Redeploy after saving.
 
@@ -54,7 +53,7 @@ npm run test:gmail-flow # approval, loading errors and exact-message Gmail prepa
 1. ChatGPT writes a draft (`status: awaiting_approval`) with the recipient, an address label, subject, body and a source for the personal hook.
 2. The queue shows each draft with automatic checks: valid address, opt-out, address label, length, em dashes, subject length, hook source, duplicate firm, open research flags. Hard failures block approval.
 3. **Approve** stores a hash of the exact recipient, subject and body. Any later edit clears it.
-4. **Open in Gmail** re-checks the hash and the daily limit, then opens your Gmail compose window with the exact approved text. You press Send in Gmail, then **I sent it** records the send and sets the follow-up date.
+4. **Open in Gmail** re-checks the hash, then opens your Gmail compose window with the exact approved text. You press Send in Gmail, then **I sent it** records the send and sets the follow-up date.
 5. ChatGPT watches your Gmail for replies and marks the message `replied`.
 
 ## Continuing the existing project
