@@ -48,3 +48,7 @@ With Gmail connected, the review queue and the **Send** page can send approved m
 ## Editing after a draft was saved
 
 If a message's text changes after "Add to Gmail drafts", adding it again replaces the saved Gmail draft in place (same draft, new text) instead of skipping or creating a second draft. Our own draft is ignored by the earlier-correspondence check; any other mail with that person still blocks. If the draft was deleted in Gmail, a new one is created. Hand edits made inside the Gmail draft are overwritten. Approval is unchanged by this step.
+
+## Staggered Send all
+
+**Send all** sends 15 approved emails, waits 15 minutes, then sends the next 15, until the approved list is done (owner request, 2026-11-21). The schedule runs in the open browser tab, so the tab must stay open; a Stop button ends it after the current message. If the tab closes, the remaining messages stay approved and pressing Send all again continues (already sent messages are skipped by the server). Each message is still sent individually with its exact approved text and all server checks.

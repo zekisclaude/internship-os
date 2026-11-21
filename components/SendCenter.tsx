@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { approveOne, canApprove, canSend, sendOne, type SendItem, type SendResult } from "@/lib/send-client";
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+// Staggered sending (owner request 2026-11-21): 15 emails, then a 15 minute pause, repeated. The browser tab drives the schedule.
+export const BATCH = 15;
+export const GAP_MS = 15 * 60 * 1000;
 export default function SendCenter({ items, reload, cap, sentToday, showList = false }: { items: SendItem[]; reload: () => Promise<void>; cap: number; sentToday: number; showList?: boolean }) {
   const [gmail, setGmail] = useState<{ configured: boolean; connected: boolean } | null>(null);
   const [panel, setPanel] = useState<"approve" | "send" | null>(null);
@@ -11,6 +14,10 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
   const [results, setResults] = useState<SendResult[]>([]);
   const [error, setError] = useState("");
   const running = useRef(false);
+  const stopRequested = useRef(false);
+  const [nextAt, setNextAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!nextAt) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [nextAt]);
   useEffect(() => { fetch("/api/gmail/status", { cache: "no-store" }).then(r => r.json()).then(setGmail).catch(() => setError("Could not check the Gmail connection.")); }, []);
   const toApprove = items.filter(canApprove);
   const approved = items.filter(canSend);
@@ -25,7 +32,7 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
   }
   async function run(kind: "approve" | "send") {
     if (running.current) return;
-    running.current = true; setBusy(true); setResults([]); setError("");
+    running.current = true; stopRequested.current = false; setBusy(true); setResults([]); setError("");
     // Snapshot the exact set shown in the confirmation. Anything that changes afterward is refused by the server.
     const set = (kind === "approve" ? toApprove : toSend).map(i => ({ ...i }));
     try {
@@ -33,9 +40,17 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
         const res = kind === "approve" ? await approveOne(set[n]) : await sendOne(set[n]);
         setResults(old => [...old, res]);
         if ((res as any).stop) { setError(res.reason || "Stopped. Check Gmail before continuing."); break; }
-        if (kind === "send" && n < set.length - 1) await wait(2500);
+        if (kind === "send" && n < set.length - 1) {
+          if ((n + 1) % BATCH === 0) {
+            const until = Date.now() + GAP_MS; setNextAt(until); setNow(Date.now());
+            while (Date.now() < until && !stopRequested.current) await wait(1000);
+            setNextAt(null);
+            if (stopRequested.current) { setError("Stopped. The remaining messages stay approved; press Send all to continue."); break; }
+          } else await wait(2500);
+        }
+        if (stopRequested.current) { setError("Stopped. The remaining messages stay approved; press Send all to continue."); break; }
       }
-    } finally { await reload(); running.current = false; setBusy(false); setPanel(null); setAck(false); }
+    } finally { setNextAt(null); await reload(); running.current = false; setBusy(false); setPanel(null); setAck(false); }
   }
   async function sendIndividually(it: SendItem) {
     if (running.current) return;
@@ -56,16 +71,16 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
     {gmail?.configured && !connected && <p className="small">Connect Gmail in this browser to enable sending. Until then, use "Open in Gmail".</p>}
     {approved.length > toSend.length && <p className="small">Daily limit: only {toSend.length} will send now; the rest stay approved for tomorrow.</p>}
     {panel && <div className="card" style={{ marginTop: 10 }}>
-      <b>{panel === "approve" ? `Approve these ${toApprove.length} messages` : `Send these ${toSend.length} emails now`}</b>
+      <b>{panel === "approve" ? `Approve these ${toApprove.length} messages` : `Send these ${toSend.length} emails, ${BATCH} now and ${BATCH} every ${GAP_MS / 60000} minutes`}</b>
       <ul className="small">{(panel === "approve" ? toApprove : toSend).map(i => <li key={i.id}><b>{i.data.to}</b>: {i.data.subject}</li>)}</ul>
-      {panel === "send" && <p className="msg bad small">This sends real email from your Gmail right away. Sent email cannot be taken back.</p>}
+      {panel === "send" && <p className="msg bad small">This sends real email from your Gmail, the first {Math.min(BATCH, toSend.length)} right away{toSend.length > BATCH ? `, then ${BATCH} every ${GAP_MS / 60000} minutes (about ${Math.ceil(toSend.length / BATCH) * GAP_MS / 60000 - GAP_MS / 60000} minutes in all). Keep this tab open; if you close it, the rest stay approved and you can press Send all again` : ""}. Sent email cannot be taken back.</p>}
       <label className="small"><input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} /> I reviewed this exact list{panel === "send" ? " and the messages are approved as written" : ""}.</label>
       <div className="row" style={{ marginTop: 8 }}>
         <button className={"btn " + (panel === "send" ? "pri" : "")} disabled={!ack || busy} onClick={() => run(panel)}>{panel === "approve" ? "Approve" : "Send"} {(panel === "approve" ? toApprove : toSend).length}</button>
         <button className="btn" disabled={busy} onClick={() => setPanel(null)}>Cancel</button>
       </div>
     </div>}
-    {busy && <p role="status">Working… {results.length} done.</p>}
+    {busy && <p role="status">{nextAt ? `Next ${BATCH} send in ${Math.max(0, Math.ceil((nextAt - now) / 1000 / 60))} min. ` : "Working… "}{results.length} done.{" "}<button className="btn" onClick={() => { stopRequested.current = true; }}>Stop after this message</button></p>}
     {!!results.length && <div role="status"><p>{count("approved")} approved, {count("sent") + count("already_sent")} sent, {count("skipped")} skipped, {count("uncertain")} need checking, {count("failed")} failed.</p>
       <ul className="small">{results.filter(r => r.reason).map(r => <li key={r.id}>{label(r.id)}: {r.reason}</li>)}</ul></div>}
     {error && <p role="alert" className="msg bad">{error}</p>}

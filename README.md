@@ -16,7 +16,7 @@ Agents use a token-protected API (`/api/openapi`). Neither agent can approve or 
 3. In **Settings > Deployment Protection**, leave Vercel Authentication on for preview deployments. Production uses the optional site password described below; public access is the owner's current choice.
 
 ### 2. Sending
-Two ways. (a) Without Google setup: an approved email opens in your own Gmail already filled in, you press Send, then click "I sent it". (b) With the optional Gmail connection (see `docs/GMAIL-DRAFTS.md`): **Add all to Gmail drafts**, **Approve all**, **Send all** and per-message **Send** buttons. Send sends only the exact approved text, skips anyone with earlier mail, honors the daily cap and journals every attempt. Only the owner's connected browser session can use these; agents cannot send. Set `SENDER_GMAIL` to your sending address.
+Two ways. (a) Without Google setup: an approved email opens in your own Gmail already filled in, you press Send, then click "I sent it". (b) With the optional Gmail connection (see `docs/GMAIL-DRAFTS.md`): **Add all to Gmail drafts**, **Approve all**, **Send all** (15 now, then 15 every 15 minutes while the tab stays open) and per-message **Send** buttons. Send sends only the exact approved text, skips anyone with earlier mail, honors the daily cap and journals every attempt. Only the owner's connected browser session can use these; agents cannot send. Set `SENDER_GMAIL` to your sending address.
 
 ### 3. Environment variables (Vercel > Settings > Environment Variables, Production)
 See `.env.example` for the full list. Generate each secret with `openssl rand -hex 32` (or any password generator, 64 characters).
