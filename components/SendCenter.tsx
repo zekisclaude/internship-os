@@ -15,6 +15,7 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
   const [error, setError] = useState("");
   const running = useRef(false);
   const stopRequested = useRef(false);
+  const [mode, setMode] = useState<"batches" | "now">("batches");
   const [nextAt, setNextAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { if (!nextAt) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [nextAt]);
@@ -41,7 +42,7 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
         setResults(old => [...old, res]);
         if ((res as any).stop) { setError(res.reason || "Stopped. Check Gmail before continuing."); break; }
         if (kind === "send" && n < set.length - 1) {
-          if ((n + 1) % BATCH === 0) {
+          if (mode === "batches" && (n + 1) % BATCH === 0) {
             const until = Date.now() + GAP_MS; setNextAt(until); setNow(Date.now());
             while (Date.now() < until && !stopRequested.current) await wait(1000);
             setNextAt(null);
@@ -71,9 +72,14 @@ export default function SendCenter({ items, reload, cap, sentToday, showList = f
     {gmail?.configured && !connected && <p className="small">Connect Gmail in this browser to enable sending. Until then, use "Open in Gmail".</p>}
     {approved.length > toSend.length && <p className="small">Daily limit: only {toSend.length} will send now; the rest stay approved for tomorrow.</p>}
     {panel && <div className="card" style={{ marginTop: 10 }}>
-      <b>{panel === "approve" ? `Approve these ${toApprove.length} messages` : `Send these ${toSend.length} emails, ${BATCH} now and ${BATCH} every ${GAP_MS / 60000} minutes`}</b>
+      <b>{panel === "approve" ? `Approve these ${toApprove.length} messages` : mode === "now" ? `Send these ${toSend.length} emails now` : `Send these ${toSend.length} emails, ${BATCH} now and ${BATCH} every ${GAP_MS / 60000} minutes`}</b>
       <ul className="small">{(panel === "approve" ? toApprove : toSend).map(i => <li key={i.id}><b>{i.data.to}</b>: {i.data.subject}</li>)}</ul>
-      {panel === "send" && <p className="msg bad small">This sends real email from your Gmail, the first {Math.min(BATCH, toSend.length)} right away{toSend.length > BATCH ? `, then ${BATCH} every ${GAP_MS / 60000} minutes (about ${Math.ceil(toSend.length / BATCH) * GAP_MS / 60000 - GAP_MS / 60000} minutes in all). Keep this tab open; if you close it, the rest stay approved and you can press Send all again` : ""}. Sent email cannot be taken back.</p>}
+      {panel === "send" && <fieldset className="small" style={{ border: 0, padding: 0, margin: "8px 0" }}>
+        <legend><b>How to send</b></legend>
+        <label><input type="radio" name="sendmode" checked={mode === "batches"} disabled={busy} onChange={() => setMode("batches")} /> In batches: {BATCH} now, then {BATCH} every {GAP_MS / 60000} minutes{toSend.length > BATCH ? ` (about ${(Math.ceil(toSend.length / BATCH) - 1) * GAP_MS / 60000} minutes in all, keep this tab open)` : ""}</label><br />
+        <label><input type="radio" name="sendmode" checked={mode === "now"} disabled={busy} onChange={() => setMode("now")} /> All now, about 2.5 seconds apart</label>
+      </fieldset>}
+      {panel === "send" && <p className="msg bad small">This sends real email from your Gmail{mode === "now" ? " right away" : ", the first " + Math.min(BATCH, toSend.length) + " right away"}. If you close the tab, the rest stay approved and you can press Send all again. Sent email cannot be taken back.</p>}
       <label className="small"><input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} /> I reviewed this exact list{panel === "send" ? " and the messages are approved as written" : ""}.</label>
       <div className="row" style={{ marginTop: 8 }}>
         <button className={"btn " + (panel === "send" ? "pri" : "")} disabled={!ack || busy} onClick={() => run(panel)}>{panel === "approve" ? "Approve" : "Send"} {(panel === "approve" ? toApprove : toSend).length}</button>

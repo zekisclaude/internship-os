@@ -51,4 +51,4 @@ If a message's text changes after "Add to Gmail drafts", adding it again replace
 
 ## Staggered Send all
 
-**Send all** sends 15 approved emails, waits 15 minutes, then sends the next 15, until the approved list is done (owner request, 2026-11-21). The schedule runs in the open browser tab, so the tab must stay open; a Stop button ends it after the current message. If the tab closes, the remaining messages stay approved and pressing Send all again continues (already sent messages are skipped by the server). Each message is still sent individually with its exact approved text and all server checks.
+**Send all** offers two choices (owner request, 2026-11-21): send everything now, about 2.5 seconds apart, or send in batches: 15 approved emails, a 15 minute wait, then the next 15, until the approved list is done. The schedule runs in the open browser tab, so the tab must stay open; a Stop button ends it after the current message. If the tab closes, the remaining messages stay approved and pressing Send all again continues (already sent messages are skipped by the server). Each message is still sent individually with its exact approved text and all server checks.
